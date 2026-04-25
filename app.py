@@ -7,6 +7,7 @@ import subprocess
 import sys
 import threading
 import uuid
+import warnings
 from dataclasses import dataclass, field
 from io import BytesIO
 from pathlib import Path
@@ -23,6 +24,11 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 
 ALLOWED_EXTENSIONS = {"mp3", "mp4", "wav", "m4a", "ogg", "webm"}
 MAX_CONTENT_LENGTH = 500 * 1024 * 1024
+PYTORCH_WINDOWS_PYTHON_MIN = (3, 9)
+PYTORCH_WINDOWS_PYTHON_MAX = (3, 12)
+PYTORCH_PIP_PACKAGES = {"openai-whisper", "whisper", "torch", "torchvision", "torchaudio"}
+CUDA_INDEX_CU121 = "https://download.pytorch.org/whl/cu121"
+CUDA_INDEX_CU128 = "https://download.pytorch.org/whl/cu128"
 
 app = Flask(__name__, static_folder=".", static_url_path="")
 app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
@@ -53,6 +59,140 @@ _whisper_model = None
 _model_lock = threading.Lock()
 DEVICE = "cpu"
 USE_FP16 = False
+
+
+def python_version_text() -> str:
+    return ".".join(str(part) for part in sys.version_info[:3])
+
+
+def is_pytorch_python_supported() -> bool:
+    major_minor = sys.version_info[:2]
+    if os.name == "nt":
+        return PYTORCH_WINDOWS_PYTHON_MIN <= major_minor <= PYTORCH_WINDOWS_PYTHON_MAX
+    return major_minor >= PYTORCH_WINDOWS_PYTHON_MIN
+
+
+def python_support_blocker() -> str | None:
+    if is_pytorch_python_supported():
+        return None
+
+    if os.name == "nt":
+        return (
+            f"目前使用 Python {python_version_text()}。Windows 版 PyTorch 官方 wheel 支援 "
+            "Python 3.9～3.12；建議安裝 Python 3.11 或 3.12 後重新執行 start.bat。"
+        )
+
+    return f"目前使用 Python {python_version_text()}，請改用 Python 3.9 以上。"
+
+
+def package_base_name(package: str) -> str:
+    name = str(package).strip().lower().replace("_", "-")
+    name = name.split("[", 1)[0]
+    for separator in ("==", ">=", "<=", "~=", "!=", ">", "<"):
+        name = name.split(separator, 1)[0]
+    return name.strip()
+
+
+def packages_need_pytorch(packages: list[str]) -> bool:
+    return any(package_base_name(package) in PYTORCH_PIP_PACKAGES for package in packages)
+
+
+def version_tuple(version: str | None) -> tuple[int, int]:
+    parts: list[int] = []
+    for part in str(version or "").split("."):
+        if not part.isdigit():
+            break
+        parts.append(int(part))
+        if len(parts) == 2:
+            break
+    while len(parts) < 2:
+        parts.append(0)
+    return parts[0], parts[1]
+
+
+def capability_text(capability: tuple[int, int] | None) -> str:
+    if not capability:
+        return "未知"
+    return f"sm_{capability[0]}{capability[1]}"
+
+
+def looks_like_rtx50(gpu_name: str | None) -> bool:
+    text = str(gpu_name or "").upper().replace(" ", "")
+    return any(token in text for token in ("RTX50", "RTX5060", "RTX5070", "RTX5080", "RTX5090"))
+
+
+def recommend_cuda_index(
+    capability: tuple[int, int] | None = None,
+    nvcc_version: str | None = None,
+    gpu_name: str | None = None,
+) -> str:
+    # RTX 50 / Blackwell 是 sm_120，需要 CUDA 12.8 版 PyTorch wheel。
+    if (capability and capability >= (12, 0)) or looks_like_rtx50(gpu_name):
+        return CUDA_INDEX_CU128
+
+    if str(nvcc_version or "").startswith("11.8"):
+        return "https://download.pytorch.org/whl/cu118"
+    if str(nvcc_version or "").startswith("11"):
+        return "https://download.pytorch.org/whl/cu117"
+    return CUDA_INDEX_CU121
+
+
+def inspect_torch_cuda(test_tensor: bool = True) -> dict[str, Any]:
+    info: dict[str, Any] = {
+        "torch_installed": False,
+        "cuda_available": False,
+        "cuda_usable": False,
+        "cuda_issue": None,
+        "cuda_warnings": [],
+    }
+
+    try:
+        import torch
+    except ImportError:
+        info["cuda_issue"] = "尚未安裝 PyTorch。"
+        return info
+
+    info["torch_installed"] = True
+    info["torch_version"] = getattr(torch, "__version__", "")
+    info["torch_cuda"] = getattr(torch.version, "cuda", None)
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        try:
+            info["cuda_available"] = torch.cuda.is_available()
+            if info["cuda_available"]:
+                capability = torch.cuda.get_device_capability(0)
+                info["gpu_name"] = torch.cuda.get_device_name(0)
+                info["gpu_count"] = torch.cuda.device_count()
+                info["cuda_capability"] = list(capability)
+                info["cuda_capability_label"] = capability_text(capability)
+
+                runtime_version = version_tuple(info["torch_cuda"])
+                if capability >= (12, 0) and runtime_version < (12, 8):
+                    info["cuda_issue"] = (
+                        f"{info['gpu_name']} 是 {capability_text(capability)}，需要 CUDA 12.8 版 PyTorch；"
+                        f"目前安裝的是 CUDA {info['torch_cuda'] or '未知'}。"
+                    )
+                elif test_tensor:
+                    try:
+                        torch.empty(1, device="cuda")
+                        torch.cuda.synchronize()
+                        info["cuda_usable"] = True
+                    except Exception as exc:
+                        info["cuda_issue"] = f"CUDA 測試失敗：{exc}"
+                else:
+                    info["cuda_usable"] = True
+            else:
+                info["cuda_issue"] = "PyTorch 目前偵測不到可用 CUDA。"
+        except Exception as exc:
+            info["cuda_issue"] = f"CUDA 偵測失敗：{exc}"
+
+        info["cuda_warnings"] = [str(item.message) for item in caught]
+
+    if not info["cuda_usable"] and not info["cuda_issue"] and info["cuda_warnings"]:
+        info["cuda_issue"] = info["cuda_warnings"][0]
+
+    return info
 
 
 def ffmpeg_candidates() -> list[str]:
@@ -91,16 +231,15 @@ def setup_ffmpeg() -> None:
 
 def detect_device() -> tuple[str, bool]:
     """中文註解：自動偵測 CUDA，讓首次啟動就能決定預設運算裝置。"""
-    try:
-        import torch
+    cuda_info = inspect_torch_cuda()
+    if cuda_info.get("cuda_usable"):
+        name = cuda_info.get("gpu_name", "NVIDIA GPU")
+        print(f"[GPU] 偵測到 {name}，CUDA 測試通過，預設使用 GPU。")
+        return "cuda", True
 
-        if torch.cuda.is_available():
-            name = torch.cuda.get_device_name(0)
-            total = torch.cuda.get_device_properties(0).total_memory / 1024**3
-            print(f"[GPU] 偵測到 {name}，VRAM {total:.1f} GB，預設使用 GPU。")
-            return "cuda", True
-    except Exception as exc:
-        print(f"[GPU] 偵測 CUDA 失敗：{exc}")
+    issue = cuda_info.get("cuda_issue")
+    if issue:
+        print(f"[GPU] {issue}")
 
     print("[CPU] 未偵測到可用 GPU，改用 CPU。")
     return "cpu", False
@@ -211,7 +350,12 @@ def find_python_for_frontend() -> str:
     return sys.executable
 
 
-def run_install_command(install_id: str, command: list[str], success_message: str) -> None:
+def run_install_command(
+    install_id: str,
+    command: list[str],
+    success_message: str,
+    finish_success: bool = True,
+) -> bool:
     append_install_line(install_id, f">>> {' '.join(command)}")
     append_install_line(install_id, "安裝中，首次下載可能需要一段時間，請耐心等待。")
     append_install_line(install_id, "")
@@ -234,11 +378,66 @@ def run_install_command(install_id: str, command: list[str], success_message: st
 
         process.wait()
         if process.returncode == 0:
-            set_install_status(install_id, "done", success_message)
+            if finish_success:
+                set_install_status(install_id, "done", success_message)
+            return True
         else:
             set_install_status(install_id, "error", f"安裝失敗，錯誤代碼：{process.returncode}")
+            return False
     except Exception as exc:
         set_install_status(install_id, "error", f"安裝時發生例外：{exc}")
+        return False
+
+
+def run_cuda_torch_install(install_id: str, command: list[str]) -> None:
+    if not run_install_command(install_id, command, "CUDA 版 PyTorch 安裝完成，請重新啟動 start.bat。", False):
+        return
+
+    append_install_line(install_id, "")
+    append_install_line(install_id, "正在確認 PyTorch CUDA 狀態...")
+    verify_command = [
+        sys.executable,
+        "-c",
+        (
+            "import torch; "
+            "print('PyTorch 版本：' + str(torch.__version__)); "
+            "print('PyTorch 內建 CUDA：' + str(torch.version.cuda)); "
+            "print('CUDA 可用：' + str(torch.cuda.is_available())); "
+            "cc=torch.cuda.get_device_capability(0) if torch.cuda.is_available() else (0,0); "
+            "print('顯卡架構：sm_%d%d' % cc); "
+            "cv=tuple(int(x) for x in (torch.version.cuda or '0.0').split('.')[:2]); "
+            "ok=torch.cuda.is_available() and not (cc >= (12,0) and cv < (12,8)); "
+            "torch.empty(1, device='cuda') if ok else None; "
+            "torch.cuda.synchronize() if ok else None; "
+            "raise SystemExit(0 if ok else 2)"
+        ),
+    ]
+
+    try:
+        verifier = subprocess.run(
+            verify_command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        if verifier.stdout:
+            for raw_line in verifier.stdout.splitlines():
+                if raw_line.strip():
+                    append_install_line(install_id, raw_line.strip())
+        if verifier.returncode != 0:
+            set_install_status(
+                install_id,
+                "error",
+                "PyTorch 已安裝，但目前 CUDA 測試未通過。RTX 50 系列請安裝 CUDA 12.8 版 PyTorch；若仍失敗，請更新 NVIDIA 驅動或先改用 CPU。",
+            )
+            return
+    except Exception as exc:
+        set_install_status(install_id, "error", f"CUDA 驗證時發生例外：{exc}")
+        return
+
+    set_install_status(install_id, "done", "CUDA 版 PyTorch 安裝工作完成，請重新啟動 start.bat。")
 
 
 def run_whisper(job_id: str, file_path: str, seg_mode: str) -> None:
@@ -284,12 +483,13 @@ def run_whisper(job_id: str, file_path: str, seg_mode: str) -> None:
 
 
 def build_env_check() -> dict[str, Any]:
+    python_blocker = python_support_blocker()
     results: dict[str, Any] = {
         "python": {
-            "ok": True,
+            "ok": python_blocker is None,
             "label": "Python",
             "version": sys.version.split()[0],
-            "note": find_python_for_frontend(),
+            "note": find_python_for_frontend() if python_blocker is None else f"{find_python_for_frontend()}｜{python_blocker}",
         }
     }
 
@@ -317,16 +517,21 @@ def build_env_check() -> dict[str, Any]:
     except ImportError:
         results["whisper"] = {"ok": False, "label": "openai-whisper", "version": None, "note": "尚未安裝"}
 
-    try:
-        import torch
-
+    torch_info = inspect_torch_cuda()
+    if torch_info.get("torch_installed"):
+        if torch_info.get("cuda_usable"):
+            torch_note = "CUDA 可用"
+        elif torch_info.get("cuda_available"):
+            torch_note = torch_info.get("cuda_issue") or "偵測到 GPU，但 PyTorch CUDA 版本不相容"
+        else:
+            torch_note = "目前使用 CPU"
         results["torch"] = {
             "ok": True,
             "label": "PyTorch",
-            "version": getattr(torch, "__version__", ""),
-            "note": "CUDA 可用" if torch.cuda.is_available() else "目前使用 CPU",
+            "version": torch_info.get("torch_version", ""),
+            "note": torch_note,
         }
-    except ImportError:
+    else:
         results["torch"] = {"ok": False, "label": "PyTorch", "version": None, "note": "尚未安裝"}
 
     ffmpeg_path = shutil.which("ffmpeg")
@@ -360,6 +565,8 @@ def build_env_check() -> dict[str, Any]:
     if not results["whisper"]["ok"]:
         missing_pip.append("openai-whisper")
     results["missing_pip"] = missing_pip
+    results["python_supported"] = python_blocker is None
+    results["python_blocker"] = python_blocker
     return results
 
 
@@ -369,7 +576,10 @@ DEVICE, USE_FP16 = detect_device()
 
 @app.route("/")
 def index():
-    return send_file(INDEX_FILE)
+    response = send_file(INDEX_FILE)
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    return response
 
 
 @app.route("/upload", methods=["POST"])
@@ -490,19 +700,18 @@ def device_info():
         "model_loaded": _whisper_model is not None,
     }
 
+    cuda_info = inspect_torch_cuda(test_tensor=False)
+    info.update(cuda_info)
+
     try:
         import torch
 
-        info["torch_installed"] = True
-        info["cuda_available"] = torch.cuda.is_available()
-        if torch.cuda.is_available():
+        if cuda_info.get("cuda_available"):
             props = torch.cuda.get_device_properties(0)
-            info["gpu_name"] = props.name
             info["gpu_total"] = round(props.total_memory / 1024**3, 1)
             info["gpu_used"] = round(torch.cuda.memory_allocated(0) / 1024**3, 2)
-    except ImportError:
-        info["torch_installed"] = False
-        info["cuda_available"] = False
+    except Exception:
+        pass
 
     return jsonify(info)
 
@@ -520,8 +729,10 @@ def set_device():
     except ImportError:
         return jsonify({"error": "找不到 torch，請先安裝 PyTorch。"}), 500
 
-    if target == "cuda" and not torch.cuda.is_available():
-        return jsonify({"error": "目前偵測不到可用的 CUDA GPU。"}), 400
+    if target == "cuda":
+        cuda_info = inspect_torch_cuda()
+        if not cuda_info.get("cuda_usable"):
+            return jsonify({"error": cuda_info.get("cuda_issue") or "目前偵測不到可用的 CUDA GPU。"}), 400
 
     with _model_lock:
         _whisper_model = None
@@ -541,21 +752,16 @@ def set_device():
 
 @app.route("/cuda-diagnose")
 def cuda_diagnose():
-    result: dict[str, Any] = {}
-
-    try:
-        import torch
-
-        result["torch_version"] = torch.__version__
-        result["cuda_available"] = torch.cuda.is_available()
-        result["torch_cuda"] = torch.version.cuda
-        if torch.cuda.is_available():
-            result["gpu_name"] = torch.cuda.get_device_name(0)
-            result["gpu_count"] = torch.cuda.device_count()
-    except ImportError:
-        result["torch_version"] = None
-        result["cuda_available"] = False
-        result["torch_cuda"] = None
+    python_blocker = python_support_blocker()
+    cuda_info = inspect_torch_cuda()
+    result: dict[str, Any] = {
+        "python_version": python_version_text(),
+        "python_executable": find_python_for_frontend(),
+        "python_supported": python_blocker is None,
+        "cuda_install_supported": python_blocker is None,
+        "cuda_install_blocker": python_blocker,
+    }
+    result.update(cuda_info)
 
     if shutil.which("nvcc"):
         try:
@@ -577,29 +783,26 @@ def cuda_diagnose():
                 stderr=subprocess.STDOUT,
             )
             result["nvidia_smi"] = output.strip()
+            if output.strip() and not result.get("gpu_name"):
+                result["gpu_name"] = output.strip().splitlines()[0].split(",", 1)[0].strip()
         except Exception:
             result["nvidia_smi"] = None
     else:
         result["nvidia_smi"] = None
 
-    nvcc_version = result.get("nvcc_version") or ""
-    if str(nvcc_version).startswith("12"):
-        recommended = "https://download.pytorch.org/whl/cu121"
-    elif str(nvcc_version).startswith("11.8"):
-        recommended = "https://download.pytorch.org/whl/cu118"
-    elif str(nvcc_version).startswith("11"):
-        recommended = "https://download.pytorch.org/whl/cu117"
-    else:
-        recommended = "https://download.pytorch.org/whl/cu121"
-
-    result["recommended_index"] = recommended
+    capability = tuple(result["cuda_capability"]) if result.get("cuda_capability") else None
+    result["recommended_index"] = recommend_cuda_index(capability, result.get("nvcc_version"), result.get("gpu_name") or result.get("nvidia_smi"))
     return jsonify(result)
 
 
 @app.route("/install-cuda-torch", methods=["POST"])
 def install_cuda_torch():
     data = request.get_json(silent=True) or {}
-    index_url = data.get("index_url", "https://download.pytorch.org/whl/cu121")
+    index_url = data.get("index_url", CUDA_INDEX_CU128)
+
+    python_blocker = python_support_blocker()
+    if python_blocker:
+        return jsonify({"error": python_blocker}), 400
 
     install_id = str(uuid.uuid4())
     with install_lock:
@@ -611,18 +814,17 @@ def install_cuda_torch():
         "pip",
         "install",
         "torch",
-        "torchvision",
-        "torchaudio",
         "--index-url",
         index_url,
         "--upgrade",
+        "--force-reinstall",
         "--progress-bar",
         "off",
     ]
 
     thread = threading.Thread(
-        target=run_install_command,
-        args=(install_id, command, "CUDA 版 PyTorch 安裝完成，請重新啟動 start.bat。"),
+        target=run_cuda_torch_install,
+        args=(install_id, command),
         daemon=True,
     )
     thread.start()
@@ -640,6 +842,11 @@ def install_packages():
     packages = data.get("packages", ["flask", "openai-whisper"])
     if not isinstance(packages, list) or not packages:
         packages = ["flask", "openai-whisper"]
+    packages = [str(package) for package in packages]
+
+    python_blocker = python_support_blocker()
+    if python_blocker and packages_need_pytorch(packages):
+        return jsonify({"error": python_blocker}), 400
 
     install_id = str(uuid.uuid4())
     with install_lock:

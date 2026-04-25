@@ -27,10 +27,14 @@ start.bat
 ## 安裝需求
 
 - Windows 10 / 11
-- Python 與 pip
+- Python 3.11 或 3.12 與 pip
 - `ffmpeg`
 - 建議記憶體至少 8 GB
 - 若有 NVIDIA GPU，可搭配 CUDA 版 PyTorch 加速
+
+> Windows 版 PyTorch 官方 wheel 主要支援 Python 3.9～3.12。若另一台電腦使用 Python 3.13 / 3.14，可能會出現找不到 `torchaudio` 或 CUDA 版 PyTorch 安裝檔的錯誤；建議改裝 Python 3.11 或 3.12。
+
+> RTX 50 系列顯卡（例如 RTX 5060 Ti / `sm_120`）需要 CUDA 12.8 版 PyTorch wheel。若看到 `sm_120 is not compatible`，請在「裝置 / CUDA」面板安裝推薦的 `cu128` 版本，或重新執行新版 `start.bat`。
 
 ## 手動安裝套件
 

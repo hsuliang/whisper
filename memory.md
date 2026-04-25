@@ -25,6 +25,8 @@
   - `/unload-model`
   - `/cuda-diagnose`
 - 下載字幕格式為 `UTF-8 with BOM`，方便 Windows 字幕軟體開啟
+- Windows 建議使用 Python 3.11 或 3.12；避免 Python 3.13 / 3.14 找不到 PyTorch CUDA wheel
+- RTX 50 系列 / Blackwell (`sm_120`) 需要 PyTorch CUDA 12.8 (`cu128`)，不能使用舊的 `cu121`
 
 ## 目前檔案重點
 
@@ -40,7 +42,7 @@
   - 環境檢查 / 安裝協助 / 裝置資訊 Modal
 - `start.bat`
   - Windows 啟動入口
-  - 會先找 Python，再啟動 `app.py`
+  - 會優先找 Python 3.12 / 3.11 / 3.10 / 3.9，再啟動 `app.py`
 - `README.md`
   - 已改成目前 Whisper 專案的說明
 
@@ -56,6 +58,18 @@
 - 啟動偵測結果：
   - 可找到 CapCut 內建 `ffmpeg`
   - 有偵測到 `NVIDIA GeForce RTX 3060`
+- 針對另一台電腦 Python 3.14 安裝 CUDA PyTorch 失敗：
+  - `/install-cuda-torch` 改成只安裝 Whisper 需要的 `torch`
+  - 偵測到不相容 Python 時，前端會提示改用 Python 3.11 / 3.12
+  - `start.bat` 不再直接拿 Python 3.14 執行安裝流程
+- 針對 RTX 5060 Ti 顯示 `sm_120 is not compatible`：
+  - CUDA 偵測改為實際建立 CUDA tensor，不只看 `torch.cuda.is_available()`
+  - `start.bat` 偵測 RTX 50 系列時改裝 `https://download.pytorch.org/whl/cu128`
+  - `/cuda-diagnose` 會回傳顯卡架構、PyTorch CUDA runtime、推薦索引與相容性問題
+- 針對瀏覽器仍打到舊版 Flask：
+  - 已停止舊的 `python app.py` 佔用程序
+  - `start.bat` 啟動時會檢查 localhost:5000，若是舊 `app.py` 會先停止
+  - `/` 回應加入 `Cache-Control: no-store`，避免前端 HTML 快取舊邏輯
 
 ## 重要偏好
 
@@ -71,4 +85,3 @@
   - SRT 下載是否正常
   - 裝置切換與 CUDA 安裝面板是否正常
 - 若使用者回報問題，先看 `app.py` API 與 `index.html` fetch 對應是否一致
-

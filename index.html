@@ -467,6 +467,15 @@
       filter: brightness(1.03);
     }
 
+    .btn:disabled,
+    .tool-btn:disabled {
+      cursor: not-allowed;
+      opacity: 0.58;
+      transform: none;
+      filter: none;
+      box-shadow: none;
+    }
+
     .btn {
       padding: 13px 18px;
       flex: 1;
@@ -1092,11 +1101,15 @@
     function renderEnvCheckResult(data) {
       const items = ["python", "flask", "whisper", "torch", "ffmpeg"];
       const missing = data.missing_pip || [];
-      const allGood = missing.length === 0 && data.ffmpeg && data.ffmpeg.ok;
+      const pythonOk = !data.python || data.python.ok;
+      const pythonBlocker = data.python_blocker || "";
+      const allGood = pythonOk && missing.length === 0 && data.ffmpeg && data.ffmpeg.ok;
 
-      const summaryClass = allGood ? "summary-ok" : (missing.length > 0 ? "summary-warn" : "summary-err");
+      const summaryClass = allGood ? "summary-ok" : (pythonBlocker ? "summary-err" : (missing.length > 0 ? "summary-warn" : "summary-err"));
       const summaryText = allGood
         ? "環境檢查完成，主要元件都已就緒，可以開始轉錄。"
+        : pythonBlocker
+          ? "Python 版本需要先調整，避免 PyTorch / Whisper 安裝失敗。"
         : "環境檢查完成，部分項目需要補安裝或確認設定。";
 
       const rows = items.map(key => {
@@ -1116,12 +1129,20 @@
         `;
       }).join("");
 
-      const installButton = missing.length > 0
+      const blockerCard = pythonBlocker
+        ? `<div class="device-card" style="margin-bottom:14px">
+            <strong>Python 版本提醒</strong>
+            <span>${escapeHtml(pythonBlocker)}</span>
+          </div>`
+        : "";
+
+      const installButton = missing.length > 0 && !pythonBlocker
         ? `<button class="btn btn-primary" type="button" style="width:100%; margin-top:14px" onclick='startInstall(${JSON.stringify(missing)})'>安裝缺少的套件：${escapeHtml(missing.join(", "))}</button>`
         : "";
 
       modalBody.innerHTML = `
         <div class="summary-banner ${summaryClass}">${summaryText}</div>
+        ${blockerCard}
         <table class="env-table">
           <thead>
             <tr>
@@ -1149,17 +1170,28 @@
         const response = await fetch("/env-check");
         const data = await response.json();
         const missing = data.missing_pip || [];
-        const allInstalled = missing.length === 0;
+        const pythonBlocker = data.python_blocker || "";
+        const allInstalled = missing.length === 0 && !pythonBlocker;
+        const blockerCard = pythonBlocker
+          ? `<div class="device-card" style="margin-bottom:14px">
+              <strong>Python 版本提醒</strong>
+              <span>${escapeHtml(pythonBlocker)}</span>
+            </div>`
+          : "";
+        const installAction = missing.length > 0 && !pythonBlocker
+          ? `<button class="btn btn-primary" type="button" style="width:100%; margin-bottom:14px" onclick='startInstall(${JSON.stringify(missing)})'>開始安裝缺少套件</button>`
+          : "";
 
         modalBody.innerHTML = `
           <div class="summary-banner ${allInstalled ? "summary-ok" : "summary-warn"}">
-            ${allInstalled ? "目前需要的 pip 套件都已安裝。" : `目前缺少：${escapeHtml(missing.join(", "))}`}
+            ${allInstalled ? "目前需要的 pip 套件都已安裝。" : (pythonBlocker ? "請先調整 Python 版本，再安裝 Whisper / PyTorch。" : `目前缺少：${escapeHtml(missing.join(", "))}`)}
           </div>
+          ${blockerCard}
           <div class="device-card" style="margin-bottom:14px">
             <strong>建議安裝項目</strong>
-            <span>一般情況至少需要 Flask 與 openai-whisper。首次安裝時，PyTorch 可能會一起下載，容量約 2~3 GB。</span>
+            <span>一般情況至少需要 Flask 與 openai-whisper。Windows 上建議使用 Python 3.11 或 3.12；首次安裝時，PyTorch 可能會一起下載，容量約 2~3 GB。</span>
           </div>
-          ${allInstalled ? "" : `<button class="btn btn-primary" type="button" style="width:100%; margin-bottom:14px" onclick='startInstall(${JSON.stringify(missing)})'>開始安裝缺少套件</button>`}
+          ${installAction}
           <div class="device-card">
             <strong>提醒</strong>
             <span>安裝完成後，請重新執行 start.bat。若 ffmpeg 尚未就緒，可使用 CapCut 內建版本或手動安裝 ffmpeg。</span>
@@ -1289,15 +1321,27 @@
 
         const currentDevice = deviceRes.device === "cuda" ? "GPU" : "CPU";
         const modelLoaded = deviceRes.model_loaded ? "已載入" : "尚未載入";
-        const cudaAvailable = cudaRes.cuda_available ? "可用" : "不可用";
+        const cudaAvailable = cudaRes.cuda_usable ? "可用" : (cudaRes.cuda_available ? "偵測到，但目前 PyTorch 不相容" : "不可用");
         const gpuName = deviceRes.gpu_name || cudaRes.gpu_name || "未偵測到";
         const torchVersion = cudaRes.torch_version || "未安裝";
-        const recommendedIndex = cudaRes.recommended_index || "https://download.pytorch.org/whl/cu121";
+        const torchCuda = cudaRes.torch_cuda || "未安裝";
+        const cudaCapability = cudaRes.cuda_capability_label || "未知";
+        const cudaIssue = cudaRes.cuda_issue || "";
+        const pythonVersion = cudaRes.python_version || "未知";
+        const cudaInstallBlocker = cudaRes.cuda_install_blocker || "";
+        const recommendedIndex = cudaRes.recommended_index || "https://download.pytorch.org/whl/cu128";
+        const cudaInstallButton = cudaInstallBlocker
+          ? `<button class="btn btn-primary" type="button" disabled>安裝 CUDA 版 PyTorch</button>`
+          : `<button class="btn btn-primary" type="button" onclick='startCudaInstall(${JSON.stringify(recommendedIndex)})'>安裝 CUDA 版 PyTorch</button>`;
+        const cudaInstallNotice = cudaInstallBlocker || cudaIssue
+          ? `<div class="summary-banner summary-err">${escapeHtml(cudaInstallBlocker || cudaIssue)}</div>`
+          : "";
 
         modalBody.innerHTML = `
           <div class="summary-banner ${deviceRes.device === "cuda" ? "summary-ok" : "summary-warn"}">
             目前運算裝置：${escapeHtml(currentDevice)}，模型狀態：${escapeHtml(modelLoaded)}。
           </div>
+          ${cudaInstallNotice}
 
           <div class="device-grid">
             <div class="device-card">
@@ -1316,6 +1360,22 @@
               <strong>PyTorch 版本</strong>
               <span>${escapeHtml(torchVersion)}</span>
             </div>
+            <div class="device-card">
+              <strong>PyTorch CUDA</strong>
+              <span>${escapeHtml(torchCuda)}</span>
+            </div>
+            <div class="device-card">
+              <strong>顯卡架構</strong>
+              <span>${escapeHtml(cudaCapability)}</span>
+            </div>
+            <div class="device-card">
+              <strong>Python 版本</strong>
+              <span>${escapeHtml(pythonVersion)}</span>
+            </div>
+            <div class="device-card">
+              <strong>建議安裝索引</strong>
+              <span>${escapeHtml(recommendedIndex)}</span>
+            </div>
           </div>
 
           <div class="btn-row" style="margin-bottom:14px">
@@ -1325,7 +1385,7 @@
 
           <div class="btn-row" style="margin-bottom:14px">
             <button class="btn btn-soft" type="button" onclick="unloadModel()">卸載模型</button>
-            <button class="btn btn-primary" type="button" onclick="startCudaInstall('${escapeHtml(recommendedIndex)}')">安裝 CUDA 版 PyTorch</button>
+            ${cudaInstallButton}
           </div>
 
           <div class="device-card">
