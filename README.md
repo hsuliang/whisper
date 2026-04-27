@@ -30,6 +30,14 @@ brew install python@3.12 ffmpeg
 Whisper 字幕神器.app
 ```
 
+在 GitHub 網頁上，`.app` 會顯示成資料夾 bundle，不一定會像 Finder 那樣看起來是一支 App。若要直接下載可雙擊的版本，請下載：
+
+```text
+dist/Whisper-Subtitle-macOS-app.zip
+```
+
+下載後解壓縮，會看到 `Whisper 字幕神器.app`。
+
 這個 `.app` 會在背景啟動本機 Flask 服務，不會顯示終端機視窗；啟動紀錄會寫到：
 
 ```text
@@ -143,6 +151,7 @@ Windows 如果系統 PATH 還沒有 `ffmpeg`，可以：
 - `app.py`：Flask 後端與 Whisper 工作流程
 - `index.html`：前端操作頁
 - `Whisper 字幕神器.app`：macOS 背景啟動器，不顯示終端機
+- `dist/Whisper-Subtitle-macOS-app.zip`：方便從 GitHub 下載的 macOS App 壓縮檔
 - `start.command`：macOS 啟動腳本
 - `start.bat`：Windows 啟動腳本
 - `requirements.txt`：基本套件需求

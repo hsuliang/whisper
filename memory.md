@@ -26,6 +26,7 @@
   - `/cuda-diagnose`
 - 下載字幕格式為 `UTF-8 with BOM`，方便 Windows 字幕軟體開啟
 - 已加入 macOS `.app` 背景啟動器 `Whisper 字幕神器.app`，雙擊不顯示終端機，log 在 `logs/macos-app.log`
+- GitHub 網頁上 `.app` 會顯示成 bundle 資料夾；另提供 `dist/Whisper-Subtitle-macOS-app.zip` 方便下載
 - `.app` 首次使用會自動建立 `.venv` 並安裝 Python 套件，但不會安裝系統 Python、Homebrew 或 ffmpeg；找不到 ffmpeg 時會跳通知提醒
 - 已加入 macOS 啟動入口 `start.command`，會自動建立 `.venv`、安裝需求並開啟瀏覽器
 - macOS 預設使用 `http://localhost:5050`，避開 `ControlCenter` / AirPlay Receiver 常佔用的 `5000`
@@ -51,6 +52,8 @@
   - macOS 背景啟動器
   - 會啟動 Flask、等待服務可用後開瀏覽器，不顯示終端機
   - 若 5050 被占用，會嘗試 5051～5059
+- `dist/Whisper-Subtitle-macOS-app.zip`
+  - 包好的 macOS `.app` 壓縮檔，讓 GitHub 網頁上能看到單一下載檔
 - `start.bat`
   - Windows 啟動入口
   - 會優先找 Python 3.12 / 3.11 / 3.10 / 3.9，再啟動 `app.py`
