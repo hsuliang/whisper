@@ -39,7 +39,7 @@
 ## 重要決定
 
 - 這個專案是 Whisper，不是抽獎系統
-- 以目前實際可執行的 `app.py`、`index.html`、`start.command`、`start.bat` 為主
+- 以目前實際可執行的 `app.py`、`index.html`、`Whisper 字幕神器.app`、`start.command`、`start.bat` 為主
 - 字幕下載格式使用 `UTF-8 with BOM`
 - Whisper 模型採 lazy loading
 - 若可用，優先支援 GPU
@@ -49,6 +49,7 @@
 
 - `app.py`：Flask 路由、Whisper 工作流程、安裝與裝置管理
 - `index.html`：前端操作頁與互動邏輯
+- `Whisper 字幕神器.app`：macOS 背景啟動入口
 - `start.command`：macOS 啟動入口
 - `start.bat`：Windows 啟動入口
 - `README.md`：專案說明

@@ -25,8 +25,11 @@
   - `/unload-model`
   - `/cuda-diagnose`
 - 下載字幕格式為 `UTF-8 with BOM`，方便 Windows 字幕軟體開啟
+- 已加入 macOS `.app` 背景啟動器 `Whisper 字幕神器.app`，雙擊不顯示終端機，log 在 `logs/macos-app.log`
 - 已加入 macOS 啟動入口 `start.command`，會自動建立 `.venv`、安裝需求並開啟瀏覽器
 - macOS 預設使用 `http://localhost:5050`，避開 `ControlCenter` / AirPlay Receiver 常佔用的 `5000`
+- 轉錄期間 `/status/<job_id>` 會回傳 `progress` 與 `progress_text`，前端顯示百分比進度
+- SRT 預覽以標準 SRT 區塊顯示，預設只顯示前 5 段
 - macOS Apple Silicon 可偵測 PyTorch MPS，但因 openai-whisper 可能遇到 `SparseMPS` / MPS backend 不支援，預設使用 CPU；Windows/NVIDIA 仍維持 CUDA 偵測與安裝協助
 - Windows 建議使用 Python 3.11 或 3.12；避免 Python 3.13 / 3.14 找不到 PyTorch CUDA wheel
 - RTX 50 系列 / Blackwell (`sm_120`) 需要 PyTorch CUDA 12.8 (`cu128`)，不能使用舊的 `cu121`
@@ -41,8 +44,12 @@
   - 背景執行轉錄與安裝工作
 - `index.html`
   - 單頁前端
-  - 上傳、進度、結果預覽、下載
+  - 上傳、百分比進度、標準 SRT 區塊預覽、下載
   - 環境檢查 / 安裝協助 / 裝置資訊 Modal
+- `Whisper 字幕神器.app`
+  - macOS 背景啟動器
+  - 會啟動 Flask、等待服務可用後開瀏覽器，不顯示終端機
+  - 若 5050 被占用，會嘗試 5051～5059
 - `start.bat`
   - Windows 啟動入口
   - 會優先找 Python 3.12 / 3.11 / 3.10 / 3.9，再啟動 `app.py`
@@ -85,6 +92,12 @@
   - `/set-device` 現在支援 `cpu`、`cuda`、`mps`
   - 前端「裝置 / GPU」面板會依平台顯示 CUDA 或 MPS 狀態，macOS 不再提示安裝 CUDA 版 PyTorch
   - `README.md`、`AGENTS.md`、`SKILL.md` 已更新為 Windows / macOS 雙平台
+- 針對使用者要求 `.app` 與進度顯示：
+  - 新增 `Whisper 字幕神器.app/Contents/Info.plist`
+  - 新增 `Whisper 字幕神器.app/Contents/MacOS/whisper-launcher`
+  - openai-whisper 內部 tqdm 進度會被後端轉成 job 百分比
+  - 前端進度條改為依 `/status` 回傳百分比更新
+  - SRT 預覽加入 `white-space: pre-wrap`，並只顯示前 5 段標準 SRT 區塊
 
 ## 重要偏好
 
@@ -93,7 +106,7 @@
 
 ## 下次若要續做
 
-- macOS 先跑 `start.command` 做實機測試；Windows 先跑 `start.bat`
+- macOS 一般使用先雙擊 `Whisper 字幕神器.app`；除錯才跑 `start.command`；Windows 先跑 `start.bat`
 - 優先檢查：
   - 上傳是否成功
   - 轉錄輪詢是否正常

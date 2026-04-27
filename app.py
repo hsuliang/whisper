@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import gc
+import importlib
 import os
 import platform
 import shutil
@@ -50,6 +51,8 @@ class JobState:
     file_path: str | None = None
     srt: str | None = None
     error_msg: str | None = None
+    progress: int = 0
+    progress_text: str = "等待處理"
 
 
 @dataclass
@@ -66,6 +69,7 @@ install_lock = threading.Lock()
 
 _whisper_model = None
 _model_lock = threading.Lock()
+_transcribe_lock = threading.Lock()
 DEVICE = "cpu"
 USE_FP16 = False
 
@@ -412,15 +416,73 @@ def looks_like_mps_backend_error(exc: Exception) -> bool:
     return any(marker in text for marker in MPS_ERROR_MARKERS)
 
 
-def transcribe_file(file_path: str) -> dict[str, Any]:
+def update_job_progress(job_id: str, progress: int | None = None, text: str | None = None) -> None:
+    with jobs_lock:
+        current = jobs.get(job_id)
+        if not current or current.status != "processing":
+            return
+
+        if progress is not None:
+            current.progress = max(0, min(100, int(progress)))
+        if text:
+            current.progress_text = text
+
+
+class WhisperProgress:
+    def __init__(self, job_id: str, *args: Any, **kwargs: Any) -> None:
+        self.job_id = job_id
+        self.total = int(kwargs.get("total") or (args[0] if args else 0) or 0)
+        self.n = 0
+        update_job_progress(job_id, 12, "正在分析音訊內容")
+
+    def __enter__(self) -> "WhisperProgress":
+        return self
+
+    def __exit__(self, *args: Any) -> bool:
+        return False
+
+    def update(self, amount: int | float = 1) -> None:
+        self.n += int(amount or 0)
+        if self.total <= 0:
+            return
+
+        ratio = max(0.0, min(1.0, self.n / self.total))
+        progress = 12 + round(ratio * 78)
+        update_job_progress(self.job_id, progress, f"正在轉錄語音：{progress}%")
+
+    def close(self) -> None:
+        return
+
+    def set_description(self, *_args: Any, **_kwargs: Any) -> None:
+        return
+
+    def set_postfix(self, *_args: Any, **_kwargs: Any) -> None:
+        return
+
+    def write(self, *_args: Any, **_kwargs: Any) -> None:
+        return
+
+
+def transcribe_file(job_id: str, file_path: str) -> dict[str, Any]:
+    update_job_progress(job_id, 5, "正在載入 Whisper 模型")
     model = get_whisper_model()
-    return model.transcribe(
-        file_path,
-        language=None,
-        task="transcribe",
-        fp16=USE_FP16,
-        verbose=False,
-    )
+    update_job_progress(job_id, 10, "正在準備轉錄")
+
+    # openai-whisper 內部用 tqdm 更新音訊 frame 進度；這裡接住它轉成前端百分比。
+    with _transcribe_lock:
+        transcribe_module = importlib.import_module("whisper.transcribe")
+        original_tqdm = transcribe_module.tqdm.tqdm
+        transcribe_module.tqdm.tqdm = lambda *args, **kwargs: WhisperProgress(job_id, *args, **kwargs)
+        try:
+            return model.transcribe(
+                file_path,
+                language=None,
+                task="transcribe",
+                fp16=USE_FP16,
+                verbose=False,
+            )
+        finally:
+            transcribe_module.tqdm.tqdm = original_tqdm
 
 
 def fmt_time(seconds: float) -> str:
@@ -612,22 +674,26 @@ def run_whisper(job_id: str, file_path: str, seg_mode: str) -> None:
 
         print(f"[Job {job_id[:8]}] 開始轉錄：{file_path}（device={DEVICE}）")
         try:
-            result = transcribe_file(file_path)
+            result = transcribe_file(job_id, file_path)
         except Exception as exc:
             if DEVICE != "mps" or not looks_like_mps_backend_error(exc):
                 raise
 
             print(f"[Job {job_id[:8]}] MPS 轉錄失敗，改用 CPU 重試：{exc}")
+            update_job_progress(job_id, 8, "Apple MPS 不支援此轉錄流程，正在改用 CPU 重試")
             switch_runtime_device("cpu")
             print(f"[Job {job_id[:8]}] 開始 CPU 重試：{file_path}")
-            result = transcribe_file(file_path)
+            result = transcribe_file(job_id, file_path)
 
+        update_job_progress(job_id, 94, "正在產生 SRT 字幕")
         srt_content = segments_to_srt(result["segments"], seg_mode)
         with jobs_lock:
             current = jobs.get(job_id)
             if current and current.status != "cancelled":
                 current.status = "done"
                 current.srt = srt_content
+                current.progress = 100
+                current.progress_text = "字幕產生完成"
 
         print(f"[Job {job_id[:8]}] 轉錄完成。")
     except Exception as exc:
@@ -636,6 +702,7 @@ def run_whisper(job_id: str, file_path: str, seg_mode: str) -> None:
             if current:
                 current.status = "error"
                 current.error_msg = str(exc)
+                current.progress_text = "轉錄失敗"
 
         print(f"[Job {job_id[:8]}] 轉錄失敗：{exc}")
     finally:
@@ -780,6 +847,8 @@ def upload():
             status="processing",
             filename=file.filename,
             file_path=save_path,
+            progress=2,
+            progress_text="檔案已上傳，正在排入轉錄",
         )
 
     thread = threading.Thread(target=run_whisper, args=(job_id, save_path, seg_mode), daemon=True)
@@ -797,7 +866,11 @@ def status(job_id: str):
     if not job:
         return jsonify({"status": "not_found"}), 404
 
-    payload: dict[str, Any] = {"status": job.status}
+    payload: dict[str, Any] = {
+        "status": job.status,
+        "progress": job.progress,
+        "progress_text": job.progress_text,
+    }
     if job.status == "done":
         payload["srt"] = job.srt
         payload["filename"] = Path(job.filename).stem + ".srt"

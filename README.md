@@ -11,6 +11,8 @@
 - 檢查 Python / Flask / openai-whisper / PyTorch / ffmpeg
 - 協助安裝缺少的 pip 套件
 - 查看 CPU / GPU 狀態，支援 Windows CUDA；macOS 可偵測 Apple MPS，但預設使用 CPU 以提高穩定性
+- 轉錄時顯示百分比進度
+- SRT 預覽以標準字幕區塊顯示，只預覽前幾段，完整內容請下載 `.srt`
 
 ## 啟動方式
 
@@ -22,7 +24,19 @@
 brew install python@3.12 ffmpeg
 ```
 
-然後雙擊執行：
+一般使用請雙擊執行：
+
+```text
+Whisper 字幕神器.app
+```
+
+這個 `.app` 會在背景啟動本機 Flask 服務，不會顯示終端機視窗；啟動紀錄會寫到：
+
+```text
+logs/macos-app.log
+```
+
+若要看完整啟動過程或除錯，也可以執行：
 
 ```sh
 start.command
@@ -101,6 +115,7 @@ Windows 如果系統 PATH 還沒有 `ffmpeg`，可以：
 
 - `app.py`：Flask 後端與 Whisper 工作流程
 - `index.html`：前端操作頁
+- `Whisper 字幕神器.app`：macOS 背景啟動器，不顯示終端機
 - `start.command`：macOS 啟動腳本
 - `start.bat`：Windows 啟動腳本
 - `requirements.txt`：基本套件需求

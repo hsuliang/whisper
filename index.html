@@ -339,6 +339,27 @@
       color: #9d93af;
     }
 
+    .progress-meta {
+      width: 100%;
+      max-width: 320px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 16px;
+      color: #716286;
+      font-size: 0.82rem;
+      font-weight: 800;
+      text-align: left;
+    }
+
+    .progress-meta span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
     .progress-wrap {
       width: 100%;
       max-width: 320px;
@@ -346,16 +367,17 @@
       border-radius: 999px;
       background: rgba(229, 214, 255, 0.6);
       overflow: hidden;
-      margin-top: 18px;
+      margin-top: 8px;
     }
 
     .progress-fill {
-      width: 62%;
+      width: 0%;
       height: 100%;
       border-radius: inherit;
       background: linear-gradient(90deg, var(--brand-1), var(--brand-2), var(--brand-3));
       background-size: 220% 100%;
       animation: shimmer 1.4s linear infinite;
+      transition: width 0.28s ease;
     }
 
     @keyframes shimmer {
@@ -428,6 +450,7 @@
       font-family: "Consolas", "Courier New", monospace;
       font-size: 0.83rem;
       line-height: 1.7;
+      white-space: pre-wrap;
       box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06);
     }
 
@@ -794,8 +817,12 @@
             <div class="status-title" id="status-title">準備就緒</div>
             <div class="status-text" id="status-text">請先選擇音訊或影片檔，系統會在本機進行 Whisper 轉錄。</div>
             <div class="elapsed hidden" id="elapsed-text"></div>
+            <div class="progress-meta hidden" id="progress-meta">
+              <span id="progress-label">等待上傳</span>
+              <strong id="progress-percent">0%</strong>
+            </div>
             <div class="progress-wrap hidden" id="progress-wrap">
-              <div class="progress-fill"></div>
+              <div class="progress-fill" id="progress-fill"></div>
             </div>
           </div>
         </div>
@@ -887,7 +914,11 @@
     const statusTitle = document.getElementById("status-title");
     const statusText = document.getElementById("status-text");
     const elapsedText = document.getElementById("elapsed-text");
+    const progressMeta = document.getElementById("progress-meta");
+    const progressLabel = document.getElementById("progress-label");
+    const progressPercent = document.getElementById("progress-percent");
     const progressWrap = document.getElementById("progress-wrap");
+    const progressFill = document.getElementById("progress-fill");
     const srtPreview = document.getElementById("srt-preview");
     const errorMsg = document.getElementById("error-msg");
     const resultSubtitle = document.getElementById("result-subtitle");
@@ -923,20 +954,36 @@
       elapsedText.textContent = `已等待 ${minutes} 分 ${remainSeconds} 秒`;
     }
 
+    function updateProgress(progress, message) {
+      const percent = Math.max(0, Math.min(100, Math.round(Number(progress) || 0)));
+      progressMeta.classList.remove("hidden");
+      progressWrap.classList.remove("hidden");
+      progressFill.style.width = `${percent}%`;
+      progressPercent.textContent = `${percent}%`;
+      progressLabel.textContent = message || "正在處理";
+      if (message) {
+        statusText.textContent = message;
+      }
+    }
+
     function setIdleStatus() {
       showPanel("progress");
       statusTitle.textContent = "準備就緒";
       statusText.textContent = "請先選擇音訊或影片檔，系統會在本機進行 Whisper 轉錄。";
       elapsedText.classList.add("hidden");
+      progressMeta.classList.add("hidden");
       progressWrap.classList.add("hidden");
+      progressFill.style.width = "0%";
+      progressPercent.textContent = "0%";
+      progressLabel.textContent = "等待上傳";
     }
 
     function setProcessingStatus(fileName) {
       showPanel("progress");
       statusTitle.textContent = "Whisper 正在辨識中";
       statusText.textContent = `正在處理 ${fileName}，首次載入模型或 CPU 模式會比較久，請稍等。`;
-      progressWrap.classList.remove("hidden");
       elapsedText.classList.remove("hidden");
+      updateProgress(1, "正在上傳檔案");
       state.startTime = Date.now();
       updateElapsed();
       if (state.elapsedTimer) clearInterval(state.elapsedTimer);
@@ -1013,13 +1060,27 @@
       }
     }
 
+    function previewSrt(srt, maxBlocks = 5) {
+      const blocks = String(srt || "")
+        .trim()
+        .split(/\r?\n\s*\r?\n/)
+        .map(block => block.trim())
+        .filter(Boolean);
+
+      if (blocks.length <= maxBlocks) {
+        return blocks.join("\n\n");
+      }
+
+      return `${blocks.slice(0, maxBlocks).join("\n\n")}\n\n...（僅顯示前 ${maxBlocks} 段，請下載完整 SRT）`;
+    }
+
     function renderResult(srt, filename) {
       resetTimers();
       state.currentResultFilename = filename || "result.srt";
 
       const lines = srt.split(/\r?\n/);
       const segmentCount = srt.split(/\r?\n\r?\n/).filter(block => block.trim()).length;
-      const previewLines = lines.length > 120 ? lines.slice(0, 120).join("\n") + "\n\n...（預覽已截斷，請下載完整 SRT）" : srt;
+      const previewLines = previewSrt(srt, 5);
 
       resultSubtitle.textContent = `轉錄完成，輸出檔名為 ${state.currentResultFilename}`;
       statSegments.textContent = segmentCount;
@@ -1046,6 +1107,7 @@
           }
 
           if (data.status === "done") {
+            updateProgress(100, data.progress_text || "字幕產生完成");
             renderResult(data.srt || "", data.filename || "result.srt");
           } else if (data.status === "error") {
             setError(data.error_msg || "伺服器回報轉錄失敗。");
@@ -1053,6 +1115,8 @@
             setError("已取消轉錄。");
           } else if (data.status === "not_found") {
             setError("找不到這筆工作，請重新上傳。");
+          } else {
+            updateProgress(data.progress || 0, data.progress_text || "正在轉錄");
           }
         } catch (error) {
           setError(`輪詢狀態失敗：${error.message}`);
