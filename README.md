@@ -1,6 +1,6 @@
 # Whisper 字幕神器
 
-這是一個在本機執行的 Whisper 字幕轉錄工具，提供可愛、直覺、手機也方便操作的前端介面，並用 Flask 提供上傳、轉錄、下載與環境檢查功能。
+這是一個在本機執行的 Whisper 字幕轉錄工具，提供可愛、直覺、手機也方便操作的前端介面，並用 Flask 提供上傳、轉錄、下載與環境檢查功能。現在可在 Windows 與 macOS 使用。
 
 ## 目前功能
 
@@ -10,9 +10,44 @@
 - 下載 UTF-8 BOM 的 `.srt`
 - 檢查 Python / Flask / openai-whisper / PyTorch / ffmpeg
 - 協助安裝缺少的 pip 套件
-- 查看 CPU / GPU / CUDA 狀態，切換裝置與卸載模型
+- 查看 CPU / GPU 狀態，支援 Windows CUDA；macOS 可偵測 Apple MPS，但預設使用 CPU 以提高穩定性
 
 ## 啟動方式
+
+### macOS
+
+第一次使用建議先安裝 Python 3.11 / 3.12 與 ffmpeg：
+
+```sh
+brew install python@3.12 ffmpeg
+```
+
+然後雙擊執行：
+
+```sh
+start.command
+```
+
+`start.command` 會自動建立 `.venv`、安裝 `requirements.txt`，並開啟：
+
+- [http://localhost:5050](http://localhost:5050)
+
+> macOS 的 `ControlCenter` / AirPlay Receiver 常會佔用 `5000`，所以 macOS 預設改用 `5050`。
+
+若 macOS 擋下 `start.command`，可在終端機進入專案資料夾後執行：
+
+```sh
+chmod +x start.command
+./start.command
+```
+
+若想指定其他 port：
+
+```sh
+WHISPER_PORT=5051 ./start.command
+```
+
+### Windows
 
 直接執行：
 
@@ -20,21 +55,21 @@
 start.bat
 ```
 
-程式會優先找系統 Python；若找不到，會嘗試使用內建 Python。啟動後會自動開啟：
-
-- [http://localhost:5000](http://localhost:5000)
+程式會優先找系統 Python；若找不到，會嘗試使用內建 Python。啟動後也會自動開啟 [http://localhost:5000](http://localhost:5000)。
 
 ## 安裝需求
 
-- Windows 10 / 11
+- macOS 12 以上，或 Windows 10 / 11
 - Python 3.11 或 3.12 與 pip
 - `ffmpeg`
 - 建議記憶體至少 8 GB
-- 若有 NVIDIA GPU，可搭配 CUDA 版 PyTorch 加速
+- macOS Apple Silicon 可偵測 PyTorch MPS，但 openai-whisper 在 MPS 上可能遇到不支援的 PyTorch operator，因此預設使用 CPU；Windows 若有 NVIDIA GPU，可搭配 CUDA 版 PyTorch 加速
 
 > Windows 版 PyTorch 官方 wheel 主要支援 Python 3.9～3.12。若另一台電腦使用 Python 3.13 / 3.14，可能會出現找不到 `torchaudio` 或 CUDA 版 PyTorch 安裝檔的錯誤；建議改裝 Python 3.11 或 3.12。
 
-> RTX 50 系列顯卡（例如 RTX 5060 Ti / `sm_120`）需要 CUDA 12.8 版 PyTorch wheel。若看到 `sm_120 is not compatible`，請在「裝置 / CUDA」面板安裝推薦的 `cu128` 版本，或重新執行新版 `start.bat`。
+> RTX 50 系列顯卡（例如 RTX 5060 Ti / `sm_120`）需要 CUDA 12.8 版 PyTorch wheel。若看到 `sm_120 is not compatible`，請在「裝置 / GPU」面板安裝推薦的 `cu128` 版本，或重新執行新版 `start.bat`。
+
+> 若在 macOS 手動切到 Apple GPU (MPS) 後遇到 `SparseMPS` 或 `MPS backend` 錯誤，程式會自動卸載 MPS 模型並改用 CPU 重試同一個檔案。
 
 ## 手動安裝套件
 
@@ -42,9 +77,21 @@ start.bat
 python -m pip install -r requirements.txt
 ```
 
+macOS 若使用專案虛擬環境：
+
+```sh
+.venv/bin/python -m pip install -r requirements.txt
+```
+
 ## ffmpeg 提醒
 
-如果系統 PATH 還沒有 `ffmpeg`，可以：
+macOS 建議：
+
+```sh
+brew install ffmpeg
+```
+
+Windows 如果系統 PATH 還沒有 `ffmpeg`，可以：
 
 1. 使用 CapCut / 剪映內建的 ffmpeg
 2. 或自行安裝到 `C:\ffmpeg\bin`
@@ -54,6 +101,7 @@ python -m pip install -r requirements.txt
 
 - `app.py`：Flask 後端與 Whisper 工作流程
 - `index.html`：前端操作頁
+- `start.command`：macOS 啟動腳本
 - `start.bat`：Windows 啟動腳本
 - `requirements.txt`：基本套件需求
 - `uploads/`：暫存上傳檔案

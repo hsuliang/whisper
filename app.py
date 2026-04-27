@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import gc
 import os
+import platform
 import shutil
 import subprocess
 import sys
@@ -29,6 +30,14 @@ PYTORCH_WINDOWS_PYTHON_MAX = (3, 12)
 PYTORCH_PIP_PACKAGES = {"openai-whisper", "whisper", "torch", "torchvision", "torchaudio"}
 CUDA_INDEX_CU121 = "https://download.pytorch.org/whl/cu121"
 CUDA_INDEX_CU128 = "https://download.pytorch.org/whl/cu128"
+MPS_ERROR_MARKERS = (
+    "SparseMPS",
+    "MPS backend",
+    "AutogradMPS",
+    "PYTORCH_ENABLE_MPS_FALLBACK",
+)
+
+os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
 
 app = Flask(__name__, static_folder=".", static_url_path="")
 app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
@@ -61,13 +70,56 @@ DEVICE = "cpu"
 USE_FP16 = False
 
 
+def is_windows() -> bool:
+    return os.name == "nt"
+
+
+def is_macos() -> bool:
+    return platform.system() == "Darwin"
+
+
+def platform_label() -> str:
+    if is_windows():
+        return "Windows"
+    if is_macos():
+        return "macOS"
+    return platform.system() or "Unknown"
+
+
+def restart_entry_name() -> str:
+    if is_windows():
+        return "start.bat"
+    if is_macos():
+        return "start.command"
+    return "python app.py"
+
+
+def server_port() -> int:
+    raw_port = os.environ.get("WHISPER_PORT") or os.environ.get("PORT") or "5000"
+    try:
+        port = int(raw_port)
+    except ValueError:
+        print(f"[WARN] 無效的 port：{raw_port}，改用 5000。")
+        return 5000
+
+    if not 1 <= port <= 65535:
+        print(f"[WARN] port 超出範圍：{port}，改用 5000。")
+        return 5000
+
+    return port
+
+
+def mps_requested() -> bool:
+    return os.environ.get("WHISPER_ENABLE_MPS", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def python_version_text() -> str:
     return ".".join(str(part) for part in sys.version_info[:3])
 
 
 def is_pytorch_python_supported() -> bool:
     major_minor = sys.version_info[:2]
-    if os.name == "nt":
+    if is_windows():
         return PYTORCH_WINDOWS_PYTHON_MIN <= major_minor <= PYTORCH_WINDOWS_PYTHON_MAX
     return major_minor >= PYTORCH_WINDOWS_PYTHON_MIN
 
@@ -76,10 +128,10 @@ def python_support_blocker() -> str | None:
     if is_pytorch_python_supported():
         return None
 
-    if os.name == "nt":
+    if is_windows():
         return (
             f"目前使用 Python {python_version_text()}。Windows 版 PyTorch 官方 wheel 支援 "
-            "Python 3.9～3.12；建議安裝 Python 3.11 或 3.12 後重新執行 start.bat。"
+            f"Python 3.9～3.12；建議安裝 Python 3.11 或 3.12 後重新執行 {restart_entry_name()}。"
         )
 
     return f"目前使用 Python {python_version_text()}，請改用 Python 3.9 以上。"
@@ -183,7 +235,7 @@ def inspect_torch_cuda(test_tensor: bool = True) -> dict[str, Any]:
                 else:
                     info["cuda_usable"] = True
             else:
-                info["cuda_issue"] = "PyTorch 目前偵測不到可用 CUDA。"
+                info["cuda_issue"] = None if is_macos() else "PyTorch 目前偵測不到可用 CUDA。"
         except Exception as exc:
             info["cuda_issue"] = f"CUDA 偵測失敗：{exc}"
 
@@ -195,23 +247,82 @@ def inspect_torch_cuda(test_tensor: bool = True) -> dict[str, Any]:
     return info
 
 
+def inspect_torch_mps(test_tensor: bool = True) -> dict[str, Any]:
+    info: dict[str, Any] = {
+        "mps_available": False,
+        "mps_usable": False,
+        "mps_issue": None,
+    }
+
+    try:
+        import torch
+    except ImportError:
+        info["mps_issue"] = "尚未安裝 PyTorch。"
+        return info
+
+    backend = getattr(getattr(torch, "backends", None), "mps", None)
+    if backend is None:
+        info["mps_issue"] = "目前的 PyTorch 不支援 Apple GPU (MPS)。" if is_macos() else None
+        return info
+
+    try:
+        info["mps_built"] = bool(backend.is_built())
+        info["mps_available"] = bool(backend.is_available())
+        if info["mps_available"]:
+            if test_tensor:
+                try:
+                    torch.empty(1, device="mps")
+                    info["mps_usable"] = True
+                except Exception as exc:
+                    info["mps_issue"] = f"MPS 測試失敗：{exc}"
+            else:
+                info["mps_usable"] = True
+        elif is_macos():
+            info["mps_issue"] = "目前偵測不到可用的 Apple GPU (MPS)，將使用 CPU。"
+    except Exception as exc:
+        info["mps_issue"] = f"MPS 偵測失敗：{exc}"
+
+    return info
+
+
+def ffmpeg_binary_name() -> str:
+    return "ffmpeg.exe" if is_windows() else "ffmpeg"
+
+
+def ffmpeg_path_in_candidate(candidate: str) -> Path:
+    return Path(candidate) / ffmpeg_binary_name()
+
+
 def ffmpeg_candidates() -> list[str]:
-    """中文註解：優先找 PATH，其次找常見安裝位置與 CapCut/Jianying 內建 ffmpeg。"""
-    candidates = [
-        r"C:\ffmpeg\bin",
-        r"C:\Program Files\ffmpeg\bin",
-    ]
+    """中文註解：優先找 PATH，其次找各平台常見安裝位置。"""
+    candidates: list[str] = []
 
-    local_app_data = os.environ.get("LOCALAPPDATA")
-    if local_app_data:
-        for app_name in ("CapCut", "JianyingPro"):
-            app_root = Path(local_app_data) / app_name / "Apps"
-            if app_root.is_dir():
-                for version_dir in sorted(app_root.iterdir(), reverse=True):
-                    if version_dir.is_dir():
-                        candidates.append(str(version_dir))
+    if is_windows():
+        candidates.extend([r"C:\ffmpeg\bin", r"C:\Program Files\ffmpeg\bin"])
 
-    return candidates
+        local_app_data = os.environ.get("LOCALAPPDATA")
+        if local_app_data:
+            for app_name in ("CapCut", "JianyingPro"):
+                app_root = Path(local_app_data) / app_name / "Apps"
+                if app_root.is_dir():
+                    for version_dir in sorted(app_root.iterdir(), reverse=True):
+                        if version_dir.is_dir():
+                            candidates.append(str(version_dir))
+    elif is_macos():
+        candidates.extend(
+            [
+                "/opt/homebrew/bin",
+                "/usr/local/bin",
+                "/opt/local/bin",
+                "/usr/bin",
+                "/Applications/CapCut.app/Contents/MacOS",
+                "/Applications/CapCut.app/Contents/Frameworks",
+            ]
+        )
+    else:
+        candidates.extend(["/usr/local/bin", "/usr/bin", "/bin"])
+
+    return list(dict.fromkeys(candidates))
 
 
 def setup_ffmpeg() -> None:
@@ -220,7 +331,7 @@ def setup_ffmpeg() -> None:
         return
 
     for candidate in ffmpeg_candidates():
-        ffmpeg_path = Path(candidate) / "ffmpeg.exe"
+        ffmpeg_path = ffmpeg_path_in_candidate(candidate)
         if ffmpeg_path.is_file():
             os.environ["PATH"] = candidate + os.pathsep + os.environ.get("PATH", "")
             print(f"[ffmpeg] 使用路徑：{candidate}")
@@ -230,7 +341,7 @@ def setup_ffmpeg() -> None:
 
 
 def detect_device() -> tuple[str, bool]:
-    """中文註解：自動偵測 CUDA，讓首次啟動就能決定預設運算裝置。"""
+    """中文註解：自動偵測 CUDA / Apple MPS，讓首次啟動就能決定預設運算裝置。"""
     cuda_info = inspect_torch_cuda()
     if cuda_info.get("cuda_usable"):
         name = cuda_info.get("gpu_name", "NVIDIA GPU")
@@ -240,6 +351,18 @@ def detect_device() -> tuple[str, bool]:
     issue = cuda_info.get("cuda_issue")
     if issue:
         print(f"[GPU] {issue}")
+
+    mps_info = inspect_torch_mps()
+    if mps_info.get("mps_usable"):
+        if mps_requested():
+            print("[GPU] 偵測到 Apple GPU (MPS)，依 WHISPER_ENABLE_MPS=1 使用 MPS。")
+            return "mps", False
+        print("[GPU] 偵測到 Apple GPU (MPS)，但 Whisper 在 MPS 可能不穩定，預設使用 CPU。")
+        return "cpu", False
+
+    mps_issue = mps_info.get("mps_issue")
+    if mps_issue:
+        print(f"[GPU] {mps_issue}")
 
     print("[CPU] 未偵測到可用 GPU，改用 CPU。")
     return "cpu", False
@@ -258,6 +381,46 @@ def get_whisper_model():
             print("[Whisper] 模型載入完成。")
 
     return _whisper_model
+
+
+def clear_torch_cache() -> None:
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        if hasattr(torch, "mps") and hasattr(torch.mps, "empty_cache"):
+            torch.mps.empty_cache()
+    except Exception:
+        pass
+
+
+def switch_runtime_device(target: str) -> None:
+    global DEVICE, USE_FP16, _whisper_model
+
+    with _model_lock:
+        _whisper_model = None
+        DEVICE = target
+        USE_FP16 = target == "cuda"
+
+    gc.collect()
+    clear_torch_cache()
+
+
+def looks_like_mps_backend_error(exc: Exception) -> bool:
+    text = str(exc)
+    return any(marker in text for marker in MPS_ERROR_MARKERS)
+
+
+def transcribe_file(file_path: str) -> dict[str, Any]:
+    model = get_whisper_model()
+    return model.transcribe(
+        file_path,
+        language=None,
+        task="transcribe",
+        fp16=USE_FP16,
+        verbose=False,
+    )
 
 
 def fmt_time(seconds: float) -> str:
@@ -390,7 +553,7 @@ def run_install_command(
 
 
 def run_cuda_torch_install(install_id: str, command: list[str]) -> None:
-    if not run_install_command(install_id, command, "CUDA 版 PyTorch 安裝完成，請重新啟動 start.bat。", False):
+    if not run_install_command(install_id, command, f"CUDA 版 PyTorch 安裝完成，請重新啟動 {restart_entry_name()}。", False):
         return
 
     append_install_line(install_id, "")
@@ -437,7 +600,7 @@ def run_cuda_torch_install(install_id: str, command: list[str]) -> None:
         set_install_status(install_id, "error", f"CUDA 驗證時發生例外：{exc}")
         return
 
-    set_install_status(install_id, "done", "CUDA 版 PyTorch 安裝工作完成，請重新啟動 start.bat。")
+    set_install_status(install_id, "done", f"CUDA 版 PyTorch 安裝工作完成，請重新啟動 {restart_entry_name()}。")
 
 
 def run_whisper(job_id: str, file_path: str, seg_mode: str) -> None:
@@ -447,16 +610,17 @@ def run_whisper(job_id: str, file_path: str, seg_mode: str) -> None:
             if not current or current.status == "cancelled":
                 return
 
-        model = get_whisper_model()
-        print(f"[Job {job_id[:8]}] 開始轉錄：{file_path}")
+        print(f"[Job {job_id[:8]}] 開始轉錄：{file_path}（device={DEVICE}）")
+        try:
+            result = transcribe_file(file_path)
+        except Exception as exc:
+            if DEVICE != "mps" or not looks_like_mps_backend_error(exc):
+                raise
 
-        result = model.transcribe(
-            file_path,
-            language=None,
-            task="transcribe",
-            fp16=USE_FP16,
-            verbose=False,
-        )
+            print(f"[Job {job_id[:8]}] MPS 轉錄失敗，改用 CPU 重試：{exc}")
+            switch_runtime_device("cpu")
+            print(f"[Job {job_id[:8]}] 開始 CPU 重試：{file_path}")
+            result = transcribe_file(file_path)
 
         srt_content = segments_to_srt(result["segments"], seg_mode)
         with jobs_lock:
@@ -518,9 +682,12 @@ def build_env_check() -> dict[str, Any]:
         results["whisper"] = {"ok": False, "label": "openai-whisper", "version": None, "note": "尚未安裝"}
 
     torch_info = inspect_torch_cuda()
+    mps_info = inspect_torch_mps(test_tensor=False)
     if torch_info.get("torch_installed"):
         if torch_info.get("cuda_usable"):
             torch_note = "CUDA 可用"
+        elif mps_info.get("mps_usable"):
+            torch_note = "Apple GPU (MPS) 可用，但 Whisper 目前預設使用 CPU 較穩定"
         elif torch_info.get("cuda_available"):
             torch_note = torch_info.get("cuda_issue") or "偵測到 GPU，但 PyTorch CUDA 版本不相容"
         else:
@@ -540,7 +707,7 @@ def build_env_check() -> dict[str, Any]:
     else:
         discovered = None
         for candidate in ffmpeg_candidates():
-            if (Path(candidate) / "ffmpeg.exe").is_file():
+            if ffmpeg_path_in_candidate(candidate).is_file():
                 discovered = candidate
                 break
 
@@ -552,11 +719,16 @@ def build_env_check() -> dict[str, Any]:
                 "note": f"已找到可用路徑：{discovered}",
             }
         else:
+            ffmpeg_note = (
+                "尚未找到 ffmpeg；macOS 可用 Homebrew 安裝：brew install ffmpeg。"
+                if is_macos()
+                else "尚未找到 ffmpeg，請參考 README 或用 CapCut 內建版本。"
+            )
             results["ffmpeg"] = {
                 "ok": False,
                 "label": "ffmpeg",
                 "version": None,
-                "note": "尚未找到 ffmpeg，請參考 README 或用 CapCut 內建版本。",
+                "note": ffmpeg_note,
             }
 
     missing_pip = []
@@ -567,6 +739,8 @@ def build_env_check() -> dict[str, Any]:
     results["missing_pip"] = missing_pip
     results["python_supported"] = python_blocker is None
     results["python_blocker"] = python_blocker
+    results["platform"] = platform_label()
+    results["restart_command"] = restart_entry_name()
     return results
 
 
@@ -677,16 +851,13 @@ def unload_model():
 
     message = "目前沒有已載入的模型。"
     if freed:
-        try:
-            import torch
-
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-                message = "模型已卸載，GPU VRAM 已釋放。"
-            else:
-                message = "模型已卸載，記憶體已釋放。"
-        except Exception:
-            message = "模型已卸載。"
+        clear_torch_cache()
+        if DEVICE == "cuda":
+            message = "模型已卸載，GPU VRAM 已釋放。"
+        elif DEVICE == "mps":
+            message = "模型已卸載，Apple GPU 快取已釋放。"
+        else:
+            message = "模型已卸載，記憶體已釋放。"
 
     print(f"[Unload] {message}")
     return jsonify({"ok": True, "msg": message})
@@ -698,10 +869,14 @@ def device_info():
         "device": DEVICE,
         "fp16": USE_FP16,
         "model_loaded": _whisper_model is not None,
+        "mps_experimental": True,
+        "mps_enabled_by_env": mps_requested(),
     }
 
     cuda_info = inspect_torch_cuda(test_tensor=False)
+    mps_info = inspect_torch_mps(test_tensor=False)
     info.update(cuda_info)
+    info.update(mps_info)
 
     try:
         import torch
@@ -721,8 +896,8 @@ def set_device():
     global DEVICE, USE_FP16, _whisper_model
 
     target = (request.get_json(silent=True) or {}).get("device", "cpu")
-    if target not in {"cpu", "cuda"}:
-        return jsonify({"error": "device 必須為 cpu 或 cuda。"}), 400
+    if target not in {"cpu", "cuda", "mps"}:
+        return jsonify({"error": "device 必須為 cpu、cuda 或 mps。"}), 400
 
     try:
         import torch
@@ -733,19 +908,12 @@ def set_device():
         cuda_info = inspect_torch_cuda()
         if not cuda_info.get("cuda_usable"):
             return jsonify({"error": cuda_info.get("cuda_issue") or "目前偵測不到可用的 CUDA GPU。"}), 400
+    elif target == "mps":
+        mps_info = inspect_torch_mps()
+        if not mps_info.get("mps_usable"):
+            return jsonify({"error": mps_info.get("mps_issue") or "目前偵測不到可用的 Apple GPU (MPS)。"}), 400
 
-    with _model_lock:
-        _whisper_model = None
-
-    gc.collect()
-    try:
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-    except Exception:
-        pass
-
-    DEVICE = target
-    USE_FP16 = target == "cuda"
+    switch_runtime_device(target)
     print(f"[Device] 切換到 {DEVICE.upper()}。")
     return jsonify({"ok": True, "device": DEVICE})
 
@@ -754,14 +922,24 @@ def set_device():
 def cuda_diagnose():
     python_blocker = python_support_blocker()
     cuda_info = inspect_torch_cuda()
+    mps_info = inspect_torch_mps()
+    cuda_install_blocker = python_blocker
+    if is_macos() and not cuda_install_blocker:
+        cuda_install_blocker = "macOS 不使用 CUDA 版 PyTorch；Apple Silicon 可使用 MPS，其他 Mac 會使用 CPU。"
+
     result: dict[str, Any] = {
+        "platform": platform_label(),
         "python_version": python_version_text(),
         "python_executable": find_python_for_frontend(),
         "python_supported": python_blocker is None,
-        "cuda_install_supported": python_blocker is None,
-        "cuda_install_blocker": python_blocker,
+        "cuda_install_supported": cuda_install_blocker is None,
+        "cuda_install_blocker": cuda_install_blocker,
+        "mps_experimental": True,
+        "mps_enabled_by_env": mps_requested(),
+        "restart_command": restart_entry_name(),
     }
     result.update(cuda_info)
+    result.update(mps_info)
 
     if shutil.which("nvcc"):
         try:
@@ -790,8 +968,11 @@ def cuda_diagnose():
     else:
         result["nvidia_smi"] = None
 
-    capability = tuple(result["cuda_capability"]) if result.get("cuda_capability") else None
-    result["recommended_index"] = recommend_cuda_index(capability, result.get("nvcc_version"), result.get("gpu_name") or result.get("nvidia_smi"))
+    if is_macos():
+        result["recommended_index"] = None
+    else:
+        capability = tuple(result["cuda_capability"]) if result.get("cuda_capability") else None
+        result["recommended_index"] = recommend_cuda_index(capability, result.get("nvcc_version"), result.get("gpu_name") or result.get("nvidia_smi"))
     return jsonify(result)
 
 
@@ -799,6 +980,9 @@ def cuda_diagnose():
 def install_cuda_torch():
     data = request.get_json(silent=True) or {}
     index_url = data.get("index_url", CUDA_INDEX_CU128)
+
+    if is_macos():
+        return jsonify({"error": "macOS 不需要安裝 CUDA 版 PyTorch；請使用一般 PyTorch，Apple Silicon 會走 MPS 或 CPU。"}), 400
 
     python_blocker = python_support_blocker()
     if python_blocker:
@@ -855,7 +1039,7 @@ def install_packages():
     command = [sys.executable, "-m", "pip", "install", *packages, "--progress-bar", "off"]
     thread = threading.Thread(
         target=run_install_command,
-        args=(install_id, command, "套件安裝完成，請重新執行 start.bat。"),
+        args=(install_id, command, f"套件安裝完成，請重新執行 {restart_entry_name()}。"),
         daemon=True,
     )
     thread.start()
@@ -874,8 +1058,9 @@ def install_status(install_id: str):
 
 
 if __name__ == "__main__":
+    port = server_port()
     print("=" * 42)
     print("  Whisper 字幕神器啟動中")
-    print("  服務位置：http://localhost:5000")
+    print(f"  服務位置：http://localhost:{port}")
     print("=" * 42)
-    app.run(host="0.0.0.0", port=5000, debug=False, threaded=True)
+    app.run(host="0.0.0.0", port=port, debug=False, threaded=True)

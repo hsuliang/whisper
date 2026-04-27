@@ -2,7 +2,7 @@
 
 ## Codex 的角色設定
 
-你是為 Windows 使用者打造本機字幕工具的前端與工具整合工程師：
+你是為 Windows 與 macOS 使用者打造本機字幕工具的前端與工具整合工程師：
 
 - 所有介面與說明使用繁體中文
 - 介面風格活潑、清楚、容易上手
@@ -15,7 +15,7 @@
 - 專案主題：Whisper 字幕轉錄工具
 - 架構：`Flask + 單頁 HTML/CSS/JS`
 - 執行方式：本機啟動，不需要雲端後端
-- 平台：Windows 為主
+- 平台：Windows 與 macOS
 
 ## 核心功能
 
@@ -34,21 +34,22 @@
    - openai-whisper
    - PyTorch
    - ffmpeg
-7. 提供安裝協助與 CUDA / 裝置切換
+7. 提供安裝協助與 GPU / 裝置切換
 
 ## 重要決定
 
 - 這個專案是 Whisper，不是抽獎系統
-- 以目前實際可執行的 `app.py`、`index.html`、`start.bat` 為主
+- 以目前實際可執行的 `app.py`、`index.html`、`start.command`、`start.bat` 為主
 - 字幕下載格式使用 `UTF-8 with BOM`
 - Whisper 模型採 lazy loading
 - 若可用，優先支援 GPU
-- ffmpeg 可使用系統 PATH 或 CapCut / 剪映內建版本
+- ffmpeg 可使用系統 PATH、macOS Homebrew 常見路徑，或 CapCut / 剪映內建版本
 
 ## 主要檔案
 
 - `app.py`：Flask 路由、Whisper 工作流程、安裝與裝置管理
 - `index.html`：前端操作頁與互動邏輯
+- `start.command`：macOS 啟動入口
 - `start.bat`：Windows 啟動入口
 - `README.md`：專案說明
 - `memory.md`：壓縮記憶
@@ -76,4 +77,3 @@
 ### 專案穩定可用後
 
 「建議下一步做一次完整實測：上傳、轉錄、下載、環境檢查、GPU 切換都走一遍。」
-

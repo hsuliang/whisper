@@ -25,6 +25,9 @@
   - `/unload-model`
   - `/cuda-diagnose`
 - 下載字幕格式為 `UTF-8 with BOM`，方便 Windows 字幕軟體開啟
+- 已加入 macOS 啟動入口 `start.command`，會自動建立 `.venv`、安裝需求並開啟瀏覽器
+- macOS 預設使用 `http://localhost:5050`，避開 `ControlCenter` / AirPlay Receiver 常佔用的 `5000`
+- macOS Apple Silicon 可偵測 PyTorch MPS，但因 openai-whisper 可能遇到 `SparseMPS` / MPS backend 不支援，預設使用 CPU；Windows/NVIDIA 仍維持 CUDA 偵測與安裝協助
 - Windows 建議使用 Python 3.11 或 3.12；避免 Python 3.13 / 3.14 找不到 PyTorch CUDA wheel
 - RTX 50 系列 / Blackwell (`sm_120`) 需要 PyTorch CUDA 12.8 (`cu128`)，不能使用舊的 `cu121`
 
@@ -33,8 +36,8 @@
 - `app.py`
   - Flask 主程式
   - Whisper lazy loading
-  - ffmpeg 自動掃描
-  - GPU / CPU 裝置切換
+  - ffmpeg 自動掃描，支援 Windows 常見路徑與 macOS Homebrew 常見路徑
+  - GPU / CPU 裝置切換，支援 CUDA 與 Apple MPS
   - 背景執行轉錄與安裝工作
 - `index.html`
   - 單頁前端
@@ -43,6 +46,9 @@
 - `start.bat`
   - Windows 啟動入口
   - 會優先找 Python 3.12 / 3.11 / 3.10 / 3.9，再啟動 `app.py`
+- `start.command`
+  - macOS 啟動入口
+  - 會建立 `.venv`，使用 Python 3.12 / 3.11 / 3.10 / 3.9 / python3，安裝 `requirements.txt` 後啟動 `app.py`
 - `README.md`
   - 已改成目前 Whisper 專案的說明
 
@@ -70,6 +76,15 @@
   - 已停止舊的 `python app.py` 佔用程序
   - `start.bat` 啟動時會檢查 localhost:5000，若是舊 `app.py` 會先停止
   - `/` 回應加入 `Cache-Control: no-store`，避免前端 HTML 快取舊邏輯
+- 針對 macOS 版本：
+  - 新增 `start.command`，可在 macOS 雙擊或終端機執行
+  - `start.command` 預設使用 `WHISPER_PORT=5050`；可用 `WHISPER_PORT=5051 ./start.command` 指定其他 port
+  - `app.py` 啟動 port 改讀 `WHISPER_PORT` / `PORT`，不再硬寫 `5000`
+  - `app.py` 新增平台偵測、macOS ffmpeg 常見路徑與 Apple MPS 偵測
+  - 因 Whisper 在 MPS 上可能遇到 PyTorch sparse operator 不支援，macOS 預設不再自動選 MPS；若使用者手動切 MPS 失敗，會自動改用 CPU 重試
+  - `/set-device` 現在支援 `cpu`、`cuda`、`mps`
+  - 前端「裝置 / GPU」面板會依平台顯示 CUDA 或 MPS 狀態，macOS 不再提示安裝 CUDA 版 PyTorch
+  - `README.md`、`AGENTS.md`、`SKILL.md` 已更新為 Windows / macOS 雙平台
 
 ## 重要偏好
 
@@ -78,10 +93,10 @@
 
 ## 下次若要續做
 
-- 先跑 `start.bat` 做實機測試
+- macOS 先跑 `start.command` 做實機測試；Windows 先跑 `start.bat`
 - 優先檢查：
   - 上傳是否成功
   - 轉錄輪詢是否正常
   - SRT 下載是否正常
-  - 裝置切換與 CUDA 安裝面板是否正常
+  - 裝置切換與 GPU / CUDA / MPS 面板是否正常
 - 若使用者回報問題，先看 `app.py` API 與 `index.html` fetch 對應是否一致

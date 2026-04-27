@@ -746,7 +746,7 @@
             <span>拖曳或點一下都可以</span>
           </div>
 
-          <label class="drop-zone" id="drop-zone">
+          <div class="drop-zone" id="drop-zone" role="button" tabindex="0" aria-label="選擇音訊或影片檔">
             <input type="file" id="file-input" accept=".mp3,.mp4,.wav,.m4a,.ogg,.webm,audio/*,video/*">
             <div class="drop-inner">
               <div class="drop-icon">🎧</div>
@@ -761,7 +761,7 @@
                 <span class="chip">webm</span>
               </div>
             </div>
-          </label>
+          </div>
 
           <div class="filename hidden" id="filename-badge"></div>
 
@@ -850,7 +850,7 @@
     <section class="toolbar" style="margin-top:18px">
       <button class="tool-btn tool-env" type="button" id="env-check-btn">檢查環境</button>
       <button class="tool-btn tool-install" type="button" id="install-helper-btn">安裝協助</button>
-      <button class="tool-btn tool-device" type="button" id="device-panel-btn">裝置 / CUDA</button>
+      <button class="tool-btn tool-device" type="button" id="device-panel-btn">裝置 / GPU</button>
     </section>
   </div>
 
@@ -1189,12 +1189,12 @@
           ${blockerCard}
           <div class="device-card" style="margin-bottom:14px">
             <strong>建議安裝項目</strong>
-            <span>一般情況至少需要 Flask 與 openai-whisper。Windows 上建議使用 Python 3.11 或 3.12；首次安裝時，PyTorch 可能會一起下載，容量約 2~3 GB。</span>
+            <span>一般情況至少需要 Flask 與 openai-whisper。macOS 會優先使用專案內的 .venv；Windows 上建議使用 Python 3.11 或 3.12。首次安裝時，PyTorch 可能會一起下載，容量約 2~3 GB。</span>
           </div>
           ${installAction}
           <div class="device-card">
             <strong>提醒</strong>
-            <span>安裝完成後，請重新執行 start.bat。若 ffmpeg 尚未就緒，可使用 CapCut 內建版本或手動安裝 ffmpeg。</span>
+            <span>安裝完成後，請重新執行 start.command（macOS）或 start.bat（Windows）。若 ffmpeg 尚未就緒，macOS 可用 Homebrew 安裝，Windows 可使用 CapCut 內建版本或手動安裝。</span>
           </div>
         `;
       } catch (error) {
@@ -1224,7 +1224,7 @@
           }
 
           state.lastInstallId = data.install_id;
-          pollInstallStatus(data.install_id, terminal, "套件安裝完成，請重新執行 start.bat。");
+          pollInstallStatus(data.install_id, terminal, "套件安裝完成，請重新啟動本工具。");
         })
         .catch(error => {
           terminal.innerHTML += createTerminalLine(`安裝啟動失敗：${error.message}`, "line-err");
@@ -1253,7 +1253,7 @@
           }
 
           state.lastInstallId = data.install_id;
-          pollInstallStatus(data.install_id, terminal, "CUDA 版 PyTorch 安裝完成，請重新執行 start.bat。");
+          pollInstallStatus(data.install_id, terminal, "CUDA 版 PyTorch 安裝完成，請重新啟動本工具。");
         })
         .catch(error => {
           terminal.innerHTML += createTerminalLine(`安裝啟動失敗：${error.message}`, "line-err");
@@ -1304,12 +1304,18 @@
       }, 1100);
     }
 
+    function deviceDisplayName(device) {
+      if (device === "cuda") return "NVIDIA GPU (CUDA)";
+      if (device === "mps") return "Apple GPU (MPS)";
+      return "CPU";
+    }
+
     async function openDevicePanel() {
-      openModal("裝置與 CUDA 狀態", `
+      openModal("裝置與 GPU 狀態", `
         <div class="status-card" style="min-height:220px">
           <div class="spinner"></div>
           <div class="status-title">正在讀取裝置資訊</div>
-          <div class="status-text">幫您整理目前使用的是 CPU 還是 GPU，以及 CUDA 狀態。</div>
+          <div class="status-text">幫您整理目前使用的是 CPU、NVIDIA CUDA 還是 Apple MPS。</div>
         </div>
       `);
 
@@ -1319,26 +1325,48 @@
           fetch("/cuda-diagnose").then(r => r.json())
         ]);
 
-        const currentDevice = deviceRes.device === "cuda" ? "GPU" : "CPU";
+        const currentDevice = deviceDisplayName(deviceRes.device);
+        const platformName = cudaRes.platform || "Unknown";
+        const isMac = platformName === "macOS";
         const modelLoaded = deviceRes.model_loaded ? "已載入" : "尚未載入";
         const cudaAvailable = cudaRes.cuda_usable ? "可用" : (cudaRes.cuda_available ? "偵測到，但目前 PyTorch 不相容" : "不可用");
+        const mpsAvailable = cudaRes.mps_usable ? "可用（實驗）" : (cudaRes.mps_available ? "偵測到，但測試未通過" : "不可用");
         const gpuName = deviceRes.gpu_name || cudaRes.gpu_name || "未偵測到";
         const torchVersion = cudaRes.torch_version || "未安裝";
         const torchCuda = cudaRes.torch_cuda || "未安裝";
         const cudaCapability = cudaRes.cuda_capability_label || "未知";
         const cudaIssue = cudaRes.cuda_issue || "";
+        const mpsIssue = cudaRes.mps_issue || "";
         const pythonVersion = cudaRes.python_version || "未知";
         const cudaInstallBlocker = cudaRes.cuda_install_blocker || "";
-        const recommendedIndex = cudaRes.recommended_index || "https://download.pytorch.org/whl/cu128";
-        const cudaInstallButton = cudaInstallBlocker
+        const recommendedIndex = cudaRes.recommended_index || "";
+        const cudaInstallButton = isMac
+          ? ""
+          : cudaInstallBlocker
           ? `<button class="btn btn-primary" type="button" disabled>安裝 CUDA 版 PyTorch</button>`
           : `<button class="btn btn-primary" type="button" onclick='startCudaInstall(${JSON.stringify(recommendedIndex)})'>安裝 CUDA 版 PyTorch</button>`;
-        const cudaInstallNotice = cudaInstallBlocker || cudaIssue
-          ? `<div class="summary-banner summary-err">${escapeHtml(cudaInstallBlocker || cudaIssue)}</div>`
+        const noticeText = isMac
+          ? (mpsIssue || "macOS 不需要安裝 CUDA。Whisper 在 Apple MPS 上可能遇到 PyTorch operator 不支援，預設使用 CPU 較穩定；若手動切到 MPS 失敗，系統會自動退回 CPU 重試。")
+          : (cudaInstallBlocker || cudaIssue);
+        const noticeClass = isMac && !mpsIssue ? "summary-warn" : "summary-err";
+        const deviceIsAccelerated = deviceRes.device === "cuda" || deviceRes.device === "mps";
+        const gpuButtons = [
+          cudaRes.cuda_usable ? `<button class="btn btn-primary" type="button" onclick="switchDevice('cuda')">切換到 NVIDIA GPU</button>` : "",
+          cudaRes.mps_usable ? `<button class="btn btn-soft" type="button" onclick="switchDevice('mps')">切換到 Apple GPU（實驗）</button>` : "",
+          `<button class="btn btn-soft" type="button" onclick="switchDevice('cpu')">切換到 CPU</button>`
+        ].filter(Boolean).join("");
+        const cudaInstallNotice = noticeText
+          ? `<div class="summary-banner ${noticeClass}">${escapeHtml(noticeText)}</div>`
+          : "";
+        const recommendedCard = recommendedIndex
+          ? `<div class="device-card">
+              <strong>建議安裝索引</strong>
+              <span>${escapeHtml(recommendedIndex)}</span>
+            </div>`
           : "";
 
         modalBody.innerHTML = `
-          <div class="summary-banner ${deviceRes.device === "cuda" ? "summary-ok" : "summary-warn"}">
+          <div class="summary-banner ${deviceIsAccelerated ? "summary-ok" : "summary-warn"}">
             目前運算裝置：${escapeHtml(currentDevice)}，模型狀態：${escapeHtml(modelLoaded)}。
           </div>
           ${cudaInstallNotice}
@@ -1351,6 +1379,10 @@
             <div class="device-card">
               <strong>CUDA 狀態</strong>
               <span>${escapeHtml(cudaAvailable)}</span>
+            </div>
+            <div class="device-card">
+              <strong>Apple MPS 狀態</strong>
+              <span>${escapeHtml(mpsAvailable)}</span>
             </div>
             <div class="device-card">
               <strong>GPU 名稱</strong>
@@ -1372,15 +1404,11 @@
               <strong>Python 版本</strong>
               <span>${escapeHtml(pythonVersion)}</span>
             </div>
-            <div class="device-card">
-              <strong>建議安裝索引</strong>
-              <span>${escapeHtml(recommendedIndex)}</span>
-            </div>
+            ${recommendedCard}
           </div>
 
           <div class="btn-row" style="margin-bottom:14px">
-            <button class="btn btn-primary" type="button" onclick="switchDevice('cuda')">切換到 GPU</button>
-            <button class="btn btn-soft" type="button" onclick="switchDevice('cpu')">切換到 CPU</button>
+            ${gpuButtons}
           </div>
 
           <div class="btn-row" style="margin-bottom:14px">
@@ -1390,7 +1418,7 @@
 
           <div class="device-card">
             <strong>進一步資訊</strong>
-            <span>nvcc：${escapeHtml(cudaRes.nvcc_version || "未偵測到")}<br>nvidia-smi：${escapeHtml(cudaRes.nvidia_smi || "未偵測到")}</span>
+            <span>平台：${escapeHtml(platformName)}<br>nvcc：${escapeHtml(cudaRes.nvcc_version || "未偵測到")}<br>nvidia-smi：${escapeHtml(cudaRes.nvidia_smi || "未偵測到")}</span>
           </div>
         `;
       } catch (error) {
@@ -1429,7 +1457,16 @@
       }
     }
 
-    dropZone.addEventListener("click", () => fileInput.click());
+    dropZone.addEventListener("click", () => {
+      fileInput.value = "";
+      fileInput.click();
+    });
+    dropZone.addEventListener("keydown", event => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      fileInput.value = "";
+      fileInput.click();
+    });
     fileInput.addEventListener("change", event => {
       const file = event.target.files && event.target.files[0];
       if (!file) return;
