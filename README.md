@@ -36,6 +36,33 @@ Whisper 字幕神器.app
 logs/macos-app.log
 ```
 
+#### 第一次使用 `.app` 會自動做什麼
+
+- 尋找可用的 Python 3.9 以上版本
+- 在專案內建立 `.venv`
+- 啟用 pip
+- 安裝 `requirements.txt` 裡的 Python 套件，例如 Flask 與 openai-whisper
+- openai-whisper 會連帶安裝 PyTorch 等 Python 依賴，第一次下載可能會花比較久
+- 啟動本機服務並開啟瀏覽器到 `http://localhost:5050`
+
+#### `.app` 不會自動安裝什麼
+
+- 不會安裝 macOS 系統層的 Python
+- 不會安裝 Homebrew
+- 不會自動安裝 `ffmpeg`
+
+如果尚未安裝 `ffmpeg`，`.app` 會跳通知提醒；請先執行：
+
+```sh
+brew install ffmpeg
+```
+
+如果沒有可用的 Python，請先安裝：
+
+```sh
+brew install python@3.12
+```
+
 若要看完整啟動過程或除錯，也可以執行：
 
 ```sh

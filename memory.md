@@ -26,6 +26,7 @@
   - `/cuda-diagnose`
 - 下載字幕格式為 `UTF-8 with BOM`，方便 Windows 字幕軟體開啟
 - 已加入 macOS `.app` 背景啟動器 `Whisper 字幕神器.app`，雙擊不顯示終端機，log 在 `logs/macos-app.log`
+- `.app` 首次使用會自動建立 `.venv` 並安裝 Python 套件，但不會安裝系統 Python、Homebrew 或 ffmpeg；找不到 ffmpeg 時會跳通知提醒
 - 已加入 macOS 啟動入口 `start.command`，會自動建立 `.venv`、安裝需求並開啟瀏覽器
 - macOS 預設使用 `http://localhost:5050`，避開 `ControlCenter` / AirPlay Receiver 常佔用的 `5000`
 - 轉錄期間 `/status/<job_id>` 會回傳 `progress` 與 `progress_text`，前端顯示百分比進度
@@ -95,6 +96,7 @@
 - 針對使用者要求 `.app` 與進度顯示：
   - 新增 `Whisper 字幕神器.app/Contents/Info.plist`
   - 新增 `Whisper 字幕神器.app/Contents/MacOS/whisper-launcher`
+  - README 已補充 `.app` 首次使用會自動安裝哪些 Python 套件，以及哪些系統工具需手動安裝
   - openai-whisper 內部 tqdm 進度會被後端轉成 job 百分比
   - 前端進度條改為依 `/status` 回傳百分比更新
   - SRT 預覽加入 `white-space: pre-wrap`，並只顯示前 5 段標準 SRT 區塊

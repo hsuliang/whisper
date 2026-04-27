@@ -25,6 +25,10 @@ notify_started() {
   /usr/bin/osascript -e 'display notification "已在背景啟動，瀏覽器即將開啟。" with title "Whisper 字幕神器"' >/dev/null 2>&1 || true
 }
 
+notify_ffmpeg_missing() {
+  /usr/bin/osascript -e 'display notification "尚未找到 ffmpeg，轉錄音訊/影片前請先安裝：brew install ffmpeg。" with title "Whisper 字幕神器"' >/dev/null 2>&1 || true
+}
+
 pick_port() {
   local first_port="${WHISPER_PORT:-5050}"
   local ports=("$first_port" 5050 5051 5052 5053 5054 5055 5056 5057 5058 5059)
@@ -119,6 +123,13 @@ if ! "$PYTHON" -c "import flask, whisper" >/dev/null 2>&1; then
     notify_error
     exit 1
   }
+fi
+
+if command -v ffmpeg >/dev/null 2>&1; then
+  echo "[OK] ffmpeg found: $(command -v ffmpeg)"
+else
+  echo "[WARN] ffmpeg was not found. Install with Homebrew: brew install ffmpeg"
+  notify_ffmpeg_missing
 fi
 
 echo "[START] Starting server at $URL"
