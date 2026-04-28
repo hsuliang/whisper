@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Whisper 字幕神器 - 首次啟動建置中</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #FFF0F0 0%, #FFF5E6 100%);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #333;
+        }
+        .container {
+            background: white;
+            padding: 3rem 4rem;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(255, 107, 107, 0.1);
+            text-align: center;
+            max-width: 500px;
+        }
+        .logo {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 40px;
+            font-weight: bold;
+            margin: 0 auto 20px;
+            box-shadow: 0 5px 15px rgba(255, 107, 107, 0.3);
+        }
+        h1 {
+            font-size: 24px;
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        p {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 25px;
+            font-size: 15px;
+        }
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #FF6B6B;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .warning {
+            background: #FFF9E6;
+            padding: 15px 20px;
+            border-radius: 10px;
+            color: #B58B00;
+            font-size: 14px;
+            border: 1px solid #FFE485;
+            text-align: left;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">字</div>
+        <div class="spinner"></div>
+        <h1>首次啟動建置中...</h1>
+        <p>系統正在為您建立獨立執行環境，並下載所需的套件。<br>此步驟可能需要 <b>2 到 5 分鐘</b>的時間，請耐心等候。</p>
+        <div class="warning">
+            ⚠️ <b>請勿關閉此視窗</b><br>
+            請保持網路連線。背景環境準備完成後，本畫面將會自動為您跳轉至「Whisper 字幕神器」主系統！
+        </div>
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const port = urlParams.get('port') || '5050';
+        const targetUrl = `http://localhost:${port}`;
+        
+        let attempts = 0;
+        
+        // 延遲 5 秒後才開始偵測，避免太早觸發
+        setTimeout(() => {
+            setInterval(() => {
+                attempts++;
+                // 使用 no-cors 可以繞過跨網域限制，只要能連線就會進入 then
+                fetch(targetUrl, { mode: 'no-cors', cache: 'no-store' })
+                    .then(res => {
+                        console.log("Server is up, redirecting...");
+                        window.location.replace(targetUrl);
+                    })
+                    .catch(err => {
+                        console.log(`Still waiting for server... (${attempts})`);
+                    });
+            }, 3000);
+        }, 5000);
+    </script>
+</body>
+</html>

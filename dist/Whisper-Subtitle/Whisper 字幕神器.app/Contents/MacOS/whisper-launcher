@@ -4,9 +4,62 @@ set -u
 APP_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 cd "$APP_ROOT"
 
+export PATH="/opt/homebrew/bin:/usr/local/bin:/opt/local/bin:${PATH}"
+export PYTORCH_ENABLE_MPS_FALLBACK="${PYTORCH_ENABLE_MPS_FALLBACK:-1}"
+
+# --- 環境與權限統一預檢 (Pre-flight Check) ---
+MISSING_ENV=""
+IS_FATAL=0
+
+# 1. 隔離檢測 (App Translocation)
+if [ ! -f "$APP_ROOT/app.py" ]; then
+  MISSING_ENV="${MISSING_ENV}- 程式遭到 macOS 隔離，請使用 xattr -cr 解除限制\n"
+  IS_FATAL=1
+fi
+
+# 2. 權限檢測 (iCloud/唯讀目錄)
+if [ ! -w "$APP_ROOT" ]; then
+  MISSING_ENV="${MISSING_ENV}- 所在資料夾沒有寫入權限，請將整個資料夾移動到「家目錄」或「應用程式」內\n"
+  IS_FATAL=1
+fi
+
+# 3. 檢查 Python
+BASE_PYTHON=""
+for CANDIDATE in python3.12 python3.11 python3.10 python3.9 python3; do
+  if command -v "$CANDIDATE" >/dev/null 2>&1; then
+    if "$CANDIDATE" -c "import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)" >/dev/null 2>&1; then
+      BASE_PYTHON="$CANDIDATE"
+      break
+    fi
+  fi
+done
+
+if [ -z "$BASE_PYTHON" ]; then
+  MISSING_ENV="${MISSING_ENV}- 找不到 Python 3.9 以上版本\n"
+  IS_FATAL=1
+fi
+
+# 4. 檢查 ffmpeg
+if ! command -v ffmpeg >/dev/null 2>&1; then
+  MISSING_ENV="${MISSING_ENV}- 找不到 ffmpeg 影音處理套件\n"
+  IS_FATAL=1
+fi
+
+# 5. 若有缺失，統一跳出引導視窗並終止
+if [ $IS_FATAL -eq 1 ]; then
+  /usr/bin/osascript -e '
+    set dialogText to "【啟動失敗：環境或權限不符】\n\n啟動 Whisper 字幕神器前，偵測到以下問題：\n\n'"$MISSING_ENV"'\n👉 解決方式：\n點擊下方按鈕查看詳細的排錯與安裝教學。請確保環境與權限正確後再重新啟動！"
+    set response to display dialog dialogText buttons {"離開", "查看教學與常見問題"} default button "查看教學與常見問題" with title "Whisper 字幕神器" with icon stop
+    if button returned of response is "查看教學與常見問題" then
+      open location "https://github.com/hsuliang/whisper/releases/tag/v1.0.0"
+    end if
+  ' >/dev/null 2>&1
+  exit 1
+fi
+
 LOG_DIR="$APP_ROOT/logs"
 LOG_FILE="$LOG_DIR/macos-app.log"
-mkdir -p "$LOG_DIR"
+mkdir -p "$LOG_DIR" || exit 1
 exec >> "$LOG_FILE" 2>&1
 
 echo "================================"
@@ -14,24 +67,25 @@ echo "Whisper 字幕神器 .app launch $(date)"
 echo "Project: $APP_ROOT"
 echo "================================"
 
-export PATH="/opt/homebrew/bin:/usr/local/bin:/opt/local/bin:${PATH}"
-export PYTORCH_ENABLE_MPS_FALLBACK="${PYTORCH_ENABLE_MPS_FALLBACK:-1}"
-
-# 修正 Homebrew Python 3.12 的 pyexpat / libexpat 相容性問題
-if [ -d "/opt/homebrew/opt/expat/lib" ]; then
-  export DYLD_LIBRARY_PATH="/opt/homebrew/opt/expat/lib:${DYLD_LIBRARY_PATH:-}"
+# 自動處理 Homebrew Python 的 expat 問題 (若缺漏則於背景靜默安裝)
+if command -v brew >/dev/null 2>&1; then
+  EXPAT_PREFIX="$(brew --prefix expat 2>/dev/null)"
+  if [ -z "$EXPAT_PREFIX" ] || [ ! -d "$EXPAT_PREFIX/lib" ]; then
+    echo "[SETUP] Missing expat for Python. Installing via Homebrew..."
+    brew install expat >/dev/null 2>&1 || true
+    EXPAT_PREFIX="$(brew --prefix expat 2>/dev/null)"
+  fi
+  if [ -n "$EXPAT_PREFIX" ] && [ -d "$EXPAT_PREFIX/lib" ]; then
+    export DYLD_LIBRARY_PATH="$EXPAT_PREFIX/lib:${DYLD_LIBRARY_PATH:-}"
+  fi
 fi
 
 notify_error() {
-  /usr/bin/osascript -e 'display dialog "Whisper 字幕神器啟動失敗，請查看 logs/macos-app.log。" buttons {"OK"} default button "OK" with title "Whisper 字幕神器" with icon caution' >/dev/null 2>&1 || true
+  /usr/bin/osascript -e 'display dialog "Whisper 字幕神器啟動失敗，請查看 logs/macos-app.log 以獲取更多資訊。" buttons {"OK"} default button "OK" with title "Whisper 字幕神器" with icon caution' >/dev/null 2>&1 || true
 }
 
 notify_started() {
   /usr/bin/osascript -e 'display notification "已在背景啟動，瀏覽器即將開啟。" with title "Whisper 字幕神器"' >/dev/null 2>&1 || true
-}
-
-notify_ffmpeg_missing() {
-  /usr/bin/osascript -e 'display notification "尚未找到 ffmpeg，轉錄音訊/影片前請先安裝：brew install ffmpeg。" with title "Whisper 字幕神器"' >/dev/null 2>&1 || true
 }
 
 pick_port() {
@@ -83,30 +137,20 @@ if [ -n "$PIDS" ]; then
   done
 fi
 
-BASE_PYTHON=""
+# 如果是首次安裝 (無 .venv) 或是尚未啟動，彈出進度網頁
+if [ ! -d "$APP_ROOT/.venv" ] || ! curl -s "$URL" >/dev/null 2>&1; then
+  echo "[INFO] Opening loading screen..."
+  open "file://$APP_ROOT/loading.html?port=$PORT"
+fi
+
 if [ -x ".venv/bin/python" ]; then
   PYTHON="$PWD/.venv/bin/python"
   echo "[OK] Project virtual environment found"
 else
-  for CANDIDATE in python3.12 python3.11 python3.10 python3.9 python3; do
-    if command -v "$CANDIDATE" >/dev/null 2>&1; then
-      if "$CANDIDATE" -c "import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)" >/dev/null 2>&1; then
-        BASE_PYTHON="$CANDIDATE"
-        break
-      fi
-    fi
-  done
-
-  if [ -z "$BASE_PYTHON" ]; then
-    echo "[ERROR] No compatible Python 3.9+ found."
-    notify_error
-    exit 1
-  fi
-
   echo "[SETUP] Creating .venv with ${BASE_PYTHON}..."
-  "$BASE_PYTHON" -m venv .venv 2>/dev/null || "$BASE_PYTHON" -m venv --without-pip .venv || {
+  "$BASE_PYTHON" -m venv --clear .venv 2>/dev/null || "$BASE_PYTHON" -m venv --without-pip --clear .venv || {
     echo "[ERROR] Failed to create .venv."
-    notify_error
+    /usr/bin/osascript -e 'display dialog "無法建立 Python 虛擬環境 [Errno 1]！\n\n這通常是因為 macOS 的隱私權保護（TCC）阻擋了在此資料夾的操作。\n\n⚠️ 解決方式：\n請將整個「Whisper-Subtitle」資料夾移動到您的「使用者家目錄 (Home)」，絕對不要放在 桌面、文件 或 下載項目 裡面！\n\n移動後再重新啟動程式即可。" buttons {"了解"} default button "了解" with title "權限錯誤：無法建立環境" with icon stop' >/dev/null 2>&1
     exit 1
   }
   PYTHON="$PWD/.venv/bin/python"
@@ -131,13 +175,6 @@ if ! "$PYTHON" -c "import flask, whisper" >/dev/null 2>&1; then
     notify_error
     exit 1
   }
-fi
-
-if command -v ffmpeg >/dev/null 2>&1; then
-  echo "[OK] ffmpeg found: $(command -v ffmpeg)"
-else
-  echo "[WARN] ffmpeg was not found. Install with Homebrew: brew install ffmpeg"
-  notify_ffmpeg_missing
 fi
 
 echo "[START] Starting server at $URL"
