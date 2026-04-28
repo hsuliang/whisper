@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from flask import Flask, jsonify, request, send_file
+import urllib.parse
 
 
 # 中文註解：這個專案以單機使用為主，後端只負責接檔、呼叫 Whisper、回傳結果。
@@ -862,6 +863,86 @@ def upload():
 
     print(f"[Upload] 建立工作 {job_id[:8]}，檔案：{file.filename}，模式：{seg_mode}" + (f"，字典：{initial_prompt[:40]}" if initial_prompt else ""))
     return jsonify({"job_id": job_id})
+
+
+def run_youtube_and_whisper(job_id: str, url: str, seg_mode: str, initial_prompt: str | None):
+    try:
+        import yt_dlp
+    except ImportError:
+        with jobs_lock:
+            if job_id in jobs:
+                jobs[job_id].status = "error"
+                jobs[job_id].error = "尚未安裝 yt-dlp 模組，無法下載 YouTube，請重啟程式自動安裝"
+        return
+
+    with jobs_lock:
+        if job_id in jobs:
+            jobs[job_id].progress_text = "正在取得 YouTube 影片資訊..."
+            jobs[job_id].progress = 5
+
+    try:
+        ydl_opts = {
+            'format': 'm4a/bestaudio/best',
+            'outtmpl': str(UPLOAD_DIR / f"{job_id}.%(ext)s"),
+            'noplaylist': True,
+            'quiet': True,
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            ext = info.get('ext', 'm4a')
+            title = info.get('title', 'YouTube Audio')
+            
+            save_path = str(UPLOAD_DIR / f"{job_id}.{ext}")
+            
+            with jobs_lock:
+                if job_id in jobs:
+                    jobs[job_id].filename = f"{title}.{ext}"
+                    jobs[job_id].file_path = save_path
+                    jobs[job_id].progress_text = "下載完成，準備轉錄"
+                    jobs[job_id].progress = 10
+                    
+            # 下載完成後，交給原本的轉錄流程
+            run_whisper(job_id, save_path, seg_mode, initial_prompt)
+            
+    except Exception as e:
+        print(f"[YouTube] 下載失敗：{e}")
+        with jobs_lock:
+            if job_id in jobs:
+                jobs[job_id].status = "error"
+                jobs[job_id].error = f"YouTube 下載失敗：請確認網址正確或影片是否為非公開"
+
+@app.route("/youtube-download", methods=["POST"])
+def youtube_download():
+    url = (request.form.get("url") or "").strip()
+    if not url:
+        return jsonify({"error": "請提供 YouTube 網址。"}), 400
+
+    if "youtube.com" not in url and "youtu.be" not in url:
+        return jsonify({"error": "請提供有效的 YouTube 網址。"}), 400
+
+    seg_mode = request.form.get("seg_mode", "standard")
+    if seg_mode not in {"fine", "standard", "coarse"}:
+        seg_mode = "standard"
+
+    initial_prompt = (request.form.get("initial_prompt") or "").strip() or None
+
+    job_id = str(uuid.uuid4())
+
+    with jobs_lock:
+        jobs[job_id] = JobState(
+            status="processing",
+            filename="YouTube 影片下載中...",
+            file_path="",
+            progress=2,
+            progress_text="正在排入下載佇列",
+        )
+
+    thread = threading.Thread(target=run_youtube_and_whisper, args=(job_id, url, seg_mode, initial_prompt), daemon=True)
+    thread.start()
+
+    print(f"[YouTube] 建立工作 {job_id[:8]}，網址：{url}，模式：{seg_mode}" + (f"，字典：{initial_prompt[:40]}" if initial_prompt else ""))
+    return jsonify({"job_id": job_id})
+
 
 
 @app.route("/status/<job_id>")

@@ -143,6 +143,27 @@
       margin-top: 10px;
     }
 
+    .tab-btn {
+      flex: 1;
+      padding: 12px;
+      border: 2px solid transparent;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.5);
+      font: inherit;
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .tab-btn.active {
+      background: white;
+      border-color: rgba(255, 107, 165, 0.5);
+      color: var(--brand-1);
+      box-shadow: 0 4px 12px rgba(255, 107, 165, 0.1);
+    }
+
     .dict-btn {
       padding: 7px 14px;
       border-radius: 12px;
@@ -879,29 +900,51 @@
     <main class="grid">
       <section class="card">
         <div class="card-body">
-          <div class="section-head">
-            <h2>上傳媒體檔</h2>
-            <span>拖曳或點一下都可以</span>
+          <div class="tabs" style="display:flex; gap:10px; margin-bottom: 20px;">
+            <button class="tab-btn active" id="tab-upload" type="button" onclick="switchTab('upload')">📁 上傳媒體檔</button>
+            <button class="tab-btn" id="tab-youtube" type="button" onclick="switchTab('youtube')">🔗 YouTube 網址</button>
           </div>
 
-          <div class="drop-zone" id="drop-zone" role="button" tabindex="0" aria-label="選擇音訊或影片檔">
-            <input type="file" id="file-input" accept=".mp3,.mp4,.wav,.m4a,.ogg,.webm,audio/*,video/*">
-            <div class="drop-inner">
-              <div class="drop-icon">🎧</div>
-              <div class="drop-title">把音訊或影片拖進來</div>
-              <div class="drop-hint">或點這裡挑選檔案，完成後會自動送到本機 Whisper 進行轉錄。</div>
-              <div class="chip-row">
-                <span class="chip">mp3</span>
-                <span class="chip">mp4</span>
-                <span class="chip">wav</span>
-                <span class="chip">m4a</span>
-                <span class="chip">ogg</span>
-                <span class="chip">webm</span>
+          <div id="panel-upload">
+            <div class="section-head">
+              <h2>上傳媒體檔</h2>
+              <span>拖曳或點一下都可以</span>
+            </div>
+
+            <div class="drop-zone" id="drop-zone" role="button" tabindex="0" aria-label="選擇音訊或影片檔">
+              <input type="file" id="file-input" accept=".mp3,.mp4,.wav,.m4a,.ogg,.webm,audio/*,video/*">
+              <div class="drop-inner">
+                <div class="drop-icon">🎧</div>
+                <div class="drop-title">把音訊或影片拖進來</div>
+                <div class="drop-hint">或點這裡挑選檔案，完成後會自動送到本機 Whisper 進行轉錄。</div>
+                <div class="chip-row">
+                  <span class="chip">mp3</span>
+                  <span class="chip">mp4</span>
+                  <span class="chip">wav</span>
+                  <span class="chip">m4a</span>
+                  <span class="chip">ogg</span>
+                  <span class="chip">webm</span>
+                </div>
               </div>
             </div>
+
+            <div class="filename hidden" id="filename-badge"></div>
           </div>
 
-          <div class="filename hidden" id="filename-badge"></div>
+          <div id="panel-youtube" style="display:none;">
+            <div class="section-head">
+              <h2>下載 YouTube 影片音訊</h2>
+              <span>貼上網址即可自動下載並轉錄</span>
+            </div>
+            <div style="display:flex; gap:10px; margin-top: 10px;">
+              <input type="text" id="youtube-url" placeholder="請貼上 YouTube 影片網址 (https://www.youtube.com/watch?v=...)" style="flex:1; padding: 14px 16px; border-radius: 18px; border: 2px solid rgba(194, 170, 229, 0.4); background: rgba(255,255,255,0.78); font: inherit; font-size: 0.95rem; outline: none;">
+              <button class="btn btn-primary" id="youtube-btn" type="button" onclick="startYoutubeDownload()" style="flex:0; min-width:120px; white-space:nowrap;">下載並轉錄</button>
+            </div>
+            <div class="drop-hint" style="margin-top: 10px; text-align: left;">
+              ⚠️ 為了避免下載時間過長，系統會自動切換為只下載<b>最高音質的音訊檔</b>，並且若貼上清單網址，只會下載清單中的<b>第一部影片</b>。
+            </div>
+            <div class="filename hidden" id="youtube-filename-badge"></div>
+          </div>
 
           <div class="section-head" style="margin-top:20px">
             <h2>字幕切割粒度</h2>
@@ -1868,6 +1911,64 @@
           dictInput.value = saved;
         }
       } catch (_) { }
+    }
+
+    function switchTab(tabId) {
+      document.getElementById('tab-upload').classList.remove('active');
+      document.getElementById('tab-youtube').classList.remove('active');
+      document.getElementById('panel-upload').style.display = 'none';
+      document.getElementById('panel-youtube').style.display = 'none';
+
+      document.getElementById('tab-' + tabId).classList.add('active');
+      document.getElementById('panel-' + tabId).style.display = 'block';
+    }
+
+    async function startYoutubeDownload() {
+      const urlInput = document.getElementById("youtube-url");
+      const url = urlInput.value.trim();
+      const btn = document.getElementById("youtube-btn");
+
+      if (!url) {
+        alert("請輸入 YouTube 網址！");
+        urlInput.focus();
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerText = "處理中...";
+
+      let formData = new FormData();
+      formData.append("url", url);
+      formData.append("seg_mode", state.segMode);
+
+      let initialPrompt = document.getElementById("dict-input").value.trim();
+      if (initialPrompt) {
+        formData.append("initial_prompt", initialPrompt);
+      }
+
+      try {
+        let res = await fetch("/youtube-download", {
+          method: "POST",
+          body: formData
+        });
+        let result = await res.json();
+        if (res.ok) {
+          state.currentJobId = result.job_id;
+          document.getElementById("status-section").classList.remove("hidden");
+          startPolling();
+          
+          document.getElementById("youtube-filename-badge").innerText = "🎬 下載中: " + url;
+          document.getElementById("youtube-filename-badge").classList.remove("hidden");
+        } else {
+          alert(result.error || "提交失敗");
+          btn.disabled = false;
+          btn.innerText = "下載並轉錄";
+        }
+      } catch (err) {
+        alert("網路錯誤或伺服器無回應");
+        btn.disabled = false;
+        btn.innerText = "下載並轉錄";
+      }
     }
 
     setIdleStatus();
