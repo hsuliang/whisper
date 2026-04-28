@@ -4,9 +4,24 @@ set -u
 APP_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 cd "$APP_ROOT"
 
+# 檢查是否遭到 macOS App Translocation (隔離機制) 導致找不到 app.py
+if [ ! -f "$APP_ROOT/app.py" ]; then
+  /usr/bin/osascript -e 'display dialog "找不到 app.py！\n\n這通常是因為 macOS 的安全機制（App Translocation）將啟動程式隔離了。請開啟「終端機」，輸入以下指令解除隔離：\n\nxattr -cr \"'"$APP_ROOT"'\"" buttons {"了解"} default button "了解" with title "啟動失敗" with icon stop' >/dev/null 2>&1
+  exit 1
+fi
+
+# 檢查目錄是否有寫入權限 (建立 log 與 venv 需要)
+if [ ! -w "$APP_ROOT" ]; then
+  /usr/bin/osascript -e 'display dialog "目前資料夾沒有寫入權限！\n\n請將整個 Whisper 字幕神器資料夾移動到「應用程式」或「桌面」再試一次；或是使用 xattr -cr 解除隔離。" buttons {"了解"} default button "了解" with title "權限錯誤" with icon stop' >/dev/null 2>&1
+  exit 1
+fi
+
 LOG_DIR="$APP_ROOT/logs"
 LOG_FILE="$LOG_DIR/macos-app.log"
-mkdir -p "$LOG_DIR"
+mkdir -p "$LOG_DIR" || {
+  /usr/bin/osascript -e 'display dialog "無法建立 logs 資料夾，請檢查權限。" buttons {"OK"} default button "OK" with title "錯誤" with icon stop' >/dev/null 2>&1
+  exit 1
+}
 exec >> "$LOG_FILE" 2>&1
 
 echo "================================"
