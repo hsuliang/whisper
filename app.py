@@ -463,16 +463,17 @@ class WhisperProgress:
         return
 
 
-def transcribe_file(job_id: str, file_path: str) -> dict[str, Any]:
+def transcribe_file(job_id: str, file_path: str, initial_prompt: str | None = None) -> dict[str, Any]:
     update_job_progress(job_id, 5, "正在載入 Whisper 模型")
     model = get_whisper_model()
     update_job_progress(job_id, 10, "正在準備轉錄")
 
     # openai-whisper 內部用 tqdm 更新音訊 frame 進度；這裡接住它轉成前端百分比。
+    # 直接 patch tqdm 模組的 tqdm 屬性，確保新舊版 whisper 都能生效。
+    import tqdm as _tqdm_module
     with _transcribe_lock:
-        transcribe_module = importlib.import_module("whisper.transcribe")
-        original_tqdm = transcribe_module.tqdm.tqdm
-        transcribe_module.tqdm.tqdm = lambda *args, **kwargs: WhisperProgress(job_id, *args, **kwargs)
+        original_tqdm = _tqdm_module.tqdm
+        _tqdm_module.tqdm = lambda *args, **kwargs: WhisperProgress(job_id, *args, **kwargs)
         try:
             return model.transcribe(
                 file_path,
@@ -480,9 +481,10 @@ def transcribe_file(job_id: str, file_path: str) -> dict[str, Any]:
                 task="transcribe",
                 fp16=USE_FP16,
                 verbose=False,
+                initial_prompt=initial_prompt or None,
             )
         finally:
-            transcribe_module.tqdm.tqdm = original_tqdm
+            _tqdm_module.tqdm = original_tqdm
 
 
 def fmt_time(seconds: float) -> str:
@@ -665,7 +667,7 @@ def run_cuda_torch_install(install_id: str, command: list[str]) -> None:
     set_install_status(install_id, "done", f"CUDA 版 PyTorch 安裝工作完成，請重新啟動 {restart_entry_name()}。")
 
 
-def run_whisper(job_id: str, file_path: str, seg_mode: str) -> None:
+def run_whisper(job_id: str, file_path: str, seg_mode: str, initial_prompt: str | None = None) -> None:
     try:
         with jobs_lock:
             current = jobs.get(job_id)
@@ -673,8 +675,10 @@ def run_whisper(job_id: str, file_path: str, seg_mode: str) -> None:
                 return
 
         print(f"[Job {job_id[:8]}] 開始轉錄：{file_path}（device={DEVICE}）")
+        if initial_prompt:
+            print(f"[Job {job_id[:8]}] 字典提示：{initial_prompt[:80]}")
         try:
-            result = transcribe_file(job_id, file_path)
+            result = transcribe_file(job_id, file_path, initial_prompt=initial_prompt)
         except Exception as exc:
             if DEVICE != "mps" or not looks_like_mps_backend_error(exc):
                 raise
@@ -683,7 +687,7 @@ def run_whisper(job_id: str, file_path: str, seg_mode: str) -> None:
             update_job_progress(job_id, 8, "Apple MPS 不支援此轉錄流程，正在改用 CPU 重試")
             switch_runtime_device("cpu")
             print(f"[Job {job_id[:8]}] 開始 CPU 重試：{file_path}")
-            result = transcribe_file(job_id, file_path)
+            result = transcribe_file(job_id, file_path, initial_prompt=initial_prompt)
 
         update_job_progress(job_id, 94, "正在產生 SRT 字幕")
         srt_content = segments_to_srt(result["segments"], seg_mode)
@@ -838,6 +842,8 @@ def upload():
     if seg_mode not in {"fine", "standard", "coarse"}:
         seg_mode = "standard"
 
+    initial_prompt = (request.form.get("initial_prompt") or "").strip() or None
+
     job_id = str(uuid.uuid4())
     save_path = str(UPLOAD_DIR / f"{job_id}.{ext}")
     file.save(save_path)
@@ -851,10 +857,10 @@ def upload():
             progress_text="檔案已上傳，正在排入轉錄",
         )
 
-    thread = threading.Thread(target=run_whisper, args=(job_id, save_path, seg_mode), daemon=True)
+    thread = threading.Thread(target=run_whisper, args=(job_id, save_path, seg_mode, initial_prompt), daemon=True)
     thread.start()
 
-    print(f"[Upload] 建立工作 {job_id[:8]}，檔案：{file.filename}，模式：{seg_mode}")
+    print(f"[Upload] 建立工作 {job_id[:8]}，檔案：{file.filename}，模式：{seg_mode}" + (f"，字典：{initial_prompt[:40]}" if initial_prompt else ""))
     return jsonify({"job_id": job_id})
 
 

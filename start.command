@@ -14,6 +14,11 @@ echo
 
 export PATH="/opt/homebrew/bin:/usr/local/bin:/opt/local/bin:${PATH}"
 
+# 修正 Homebrew Python 3.12 的 pyexpat / libexpat 相容性問題
+if [ -d "/opt/homebrew/opt/expat/lib" ]; then
+  export DYLD_LIBRARY_PATH="/opt/homebrew/opt/expat/lib:${DYLD_LIBRARY_PATH:-}"
+fi
+
 echo "[CHECK] Checking localhost:${PORT}..."
 PIDS=$(lsof -tiTCP:${PORT} -sTCP:LISTEN 2>/dev/null || true)
 if [ -n "$PIDS" ]; then
@@ -58,7 +63,7 @@ else
   fi
 
   echo "[SETUP] Creating project virtual environment with ${BASE_PYTHON}..."
-  "$BASE_PYTHON" -m venv .venv
+  "$BASE_PYTHON" -m venv .venv 2>/dev/null || "$BASE_PYTHON" -m venv --without-pip .venv
   if [ $? -ne 0 ]; then
     echo "[ERROR] Failed to create .venv."
     echo
@@ -71,7 +76,10 @@ fi
 echo "[Python] ${PYTHON}"
 if ! "$PYTHON" -m pip --version >/dev/null 2>&1; then
   echo "[SETUP] Enabling pip..."
-  "$PYTHON" -m ensurepip --upgrade
+  "$PYTHON" -m ensurepip --upgrade 2>/dev/null || {
+    echo "[SETUP] ensurepip failed, trying get-pip.py..."
+    curl -sS https://bootstrap.pypa.io/get-pip.py -o /tmp/_get_pip.py && "$PYTHON" /tmp/_get_pip.py 2>&1
+  }
 fi
 echo
 
