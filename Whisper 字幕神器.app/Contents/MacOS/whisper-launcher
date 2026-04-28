@@ -141,7 +141,7 @@ if ! "$PYTHON" -m pip --version >/dev/null 2>&1; then
     echo "[SETUP] ensurepip failed, trying get-pip.py..."
     curl -sS https://bootstrap.pypa.io/get-pip.py -o /tmp/_get_pip.py && "$PYTHON" /tmp/_get_pip.py 2>&1 || {
       echo "[ERROR] Failed to enable pip."
-      notify_error
+      /usr/bin/osascript -e 'display dialog "Python 環境啟動失敗 (pip error)！\n\n如果錯誤紀錄顯示 `pyexpat` 或 `libexpat` 相關錯誤，這是因為您的 Homebrew 套件版本衝突。\n\n請打開終端機，執行以下指令修復您的系統 Python：\n\nbrew upgrade expat python@3.12" buttons {"了解"} default button "了解" with title "系統套件衝突" with icon stop' >/dev/null 2>&1
       exit 1
     }
   }
