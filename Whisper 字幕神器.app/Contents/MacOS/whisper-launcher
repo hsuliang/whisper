@@ -4,6 +4,9 @@ set -u
 APP_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 cd "$APP_ROOT"
 
+export PATH="/opt/homebrew/bin:/usr/local/bin:/opt/local/bin:${PATH}"
+export PYTORCH_ENABLE_MPS_FALLBACK="${PYTORCH_ENABLE_MPS_FALLBACK:-1}"
+
 # --- 環境與權限統一預檢 (Pre-flight Check) ---
 MISSING_ENV=""
 IS_FATAL=0
@@ -63,9 +66,6 @@ echo "================================"
 echo "Whisper 字幕神器 .app launch $(date)"
 echo "Project: $APP_ROOT"
 echo "================================"
-
-export PATH="/opt/homebrew/bin:/usr/local/bin:/opt/local/bin:${PATH}"
-export PYTORCH_ENABLE_MPS_FALLBACK="${PYTORCH_ENABLE_MPS_FALLBACK:-1}"
 
 # 自動處理 Homebrew Python 的 expat 問題 (若缺漏則於背景靜默安裝)
 if command -v brew >/dev/null 2>&1; then
