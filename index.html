@@ -1051,6 +1051,7 @@
 
           <div class="btn-row" style="margin-top:16px">
             <button class="btn btn-primary" type="button" id="download-btn">下載 SRT</button>
+            <button class="btn btn-primary" type="button" id="download-txt-btn" style="background: linear-gradient(90deg, #6f73ff, #82b2ff); box-shadow: 0 10px 22px rgba(111, 115, 255, 0.22);">下載純文字 (TXT)</button>
             <button class="btn btn-soft" type="button" id="reset-btn">重新上傳</button>
           </div>
         </div>
@@ -1787,6 +1788,11 @@
     document.getElementById("download-btn").addEventListener("click", () => {
       if (!state.currentJobId) return;
       window.location.href = `/download/${state.currentJobId}`;
+    });
+
+    document.getElementById("download-txt-btn").addEventListener("click", () => {
+      if (!state.currentJobId) return;
+      window.location.href = `/download-txt/${state.currentJobId}`;
     });
 
     document.getElementById("reset-btn").addEventListener("click", resetAll);

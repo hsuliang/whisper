@@ -51,6 +51,7 @@ class JobState:
     filename: str
     file_path: str | None = None
     srt: str | None = None
+    txt: str | None = None
     error_msg: str | None = None
     progress: int = 0
     progress_text: str = "等待處理"
@@ -560,6 +561,16 @@ def segments_to_srt(segments: list[dict[str, Any]], mode: str = "standard") -> s
 
     return "\n".join(blocks)
 
+def segments_to_txt(segments: list[dict[str, Any]], mode: str = "standard") -> str:
+    merged = merge_segments(segments, mode)
+    blocks: list[str] = []
+
+    for segment in merged:
+        text = str(segment["text"]).strip()
+        if text:
+            blocks.append(text)
+
+    return "\n\n".join(blocks)
 
 def append_install_line(install_id: str, line: str) -> None:
     with install_lock:
@@ -690,15 +701,17 @@ def run_whisper(job_id: str, file_path: str, seg_mode: str, initial_prompt: str 
             print(f"[Job {job_id[:8]}] 開始 CPU 重試：{file_path}")
             result = transcribe_file(job_id, file_path, initial_prompt=initial_prompt)
 
-        update_job_progress(job_id, 94, "正在產生 SRT 字幕")
+        update_job_progress(job_id, 94, "正在產生字幕檔")
         srt_content = segments_to_srt(result["segments"], seg_mode)
+        txt_content = segments_to_txt(result["segments"], seg_mode)
         with jobs_lock:
             current = jobs.get(job_id)
             if current and current.status != "cancelled":
                 current.status = "done"
                 current.srt = srt_content
+                current.txt = txt_content
                 current.progress = 100
-                current.progress_text = "字幕產生完成"
+                current.progress_text = "轉錄完成"
 
         print(f"[Job {job_id[:8]}] 轉錄完成。")
     except Exception as exc:
@@ -984,6 +997,25 @@ def download(job_id: str):
         as_attachment=True,
         download_name=filename,
     )
+
+@app.route("/download-txt/<job_id>")
+def download_txt(job_id: str):
+    with jobs_lock:
+        job = jobs.get(job_id)
+
+    if not job or job.status != "done" or not job.txt:
+        return "找不到可下載的文字檔。", 404
+
+    filename = Path(job.filename).stem + ".txt"
+    buffer = BytesIO(job.txt.encode("utf-8-sig"))
+    buffer.seek(0)
+    return send_file(
+        buffer,
+        mimetype="text/plain; charset=utf-8",
+        as_attachment=True,
+        download_name=filename,
+    )
+
 
 
 @app.route("/cancel/<job_id>", methods=["POST"])
