@@ -150,7 +150,7 @@ else
   echo "[SETUP] Creating .venv with ${BASE_PYTHON}..."
   "$BASE_PYTHON" -m venv --clear .venv 2>/dev/null || "$BASE_PYTHON" -m venv --without-pip --clear .venv || {
     echo "[ERROR] Failed to create .venv."
-    notify_error
+    /usr/bin/osascript -e 'display dialog "無法建立 Python 虛擬環境 [Errno 1]！\n\n這通常是因為 macOS 的隱私權保護（TCC）阻擋了在此資料夾的操作。\n\n⚠️ 解決方式：\n請將整個「Whisper-Subtitle」資料夾移動到您的「使用者家目錄 (Home)」，絕對不要放在 桌面、文件 或 下載項目 裡面！\n\n移動後再重新啟動程式即可。" buttons {"了解"} default button "了解" with title "權限錯誤：無法建立環境" with icon stop' >/dev/null 2>&1
     exit 1
   }
   PYTHON="$PWD/.venv/bin/python"
