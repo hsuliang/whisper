@@ -1952,20 +1952,19 @@
           body: formData
         });
         let result = await res.json();
+        
         if (res.ok) {
           state.currentJobId = result.job_id;
-          document.getElementById("status-section").classList.remove("hidden");
+          setProcessingStatus("YouTube: " + url);
           startPolling();
-          
-          document.getElementById("youtube-filename-badge").innerText = "🎬 下載中: " + url;
-          document.getElementById("youtube-filename-badge").classList.remove("hidden");
         } else {
           alert(result.error || "提交失敗");
           btn.disabled = false;
           btn.innerText = "下載並轉錄";
         }
       } catch (err) {
-        alert("網路錯誤或伺服器無回應");
+        alert("網路錯誤或伺服器無回應: " + err.message);
+        console.error(err);
         btn.disabled = false;
         btn.innerText = "下載並轉錄";
       }
