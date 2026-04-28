@@ -168,7 +168,7 @@ if ! "$PYTHON" -m pip --version >/dev/null 2>&1; then
   }
 fi
 
-if ! "$PYTHON" -c "import flask, whisper" >/dev/null 2>&1; then
+if ! "$PYTHON" -c "import flask, whisper, yt_dlp" >/dev/null 2>&1; then
   echo "[INSTALL] Installing requirements.txt..."
   "$PYTHON" -m pip install -r requirements.txt || {
     echo "[ERROR] Package install failed."

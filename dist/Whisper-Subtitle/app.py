@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from flask import Flask, jsonify, request, send_file
+import urllib.parse
 
 
 # 中文註解：這個專案以單機使用為主，後端只負責接檔、呼叫 Whisper、回傳結果。
@@ -25,7 +26,7 @@ INDEX_FILE = BASE_DIR / "index.html"
 UPLOAD_DIR.mkdir(exist_ok=True)
 
 ALLOWED_EXTENSIONS = {"mp3", "mp4", "wav", "m4a", "ogg", "webm"}
-MAX_CONTENT_LENGTH = 500 * 1024 * 1024
+MAX_CONTENT_LENGTH = 4000 * 1024 * 1024
 PYTORCH_WINDOWS_PYTHON_MIN = (3, 9)
 PYTORCH_WINDOWS_PYTHON_MAX = (3, 12)
 PYTORCH_PIP_PACKAGES = {"openai-whisper", "whisper", "torch", "torchvision", "torchaudio"}
@@ -50,6 +51,7 @@ class JobState:
     filename: str
     file_path: str | None = None
     srt: str | None = None
+    txt: str | None = None
     error_msg: str | None = None
     progress: int = 0
     progress_text: str = "等待處理"
@@ -559,6 +561,16 @@ def segments_to_srt(segments: list[dict[str, Any]], mode: str = "standard") -> s
 
     return "\n".join(blocks)
 
+def segments_to_txt(segments: list[dict[str, Any]], mode: str = "standard") -> str:
+    merged = merge_segments(segments, mode)
+    blocks: list[str] = []
+
+    for segment in merged:
+        text = str(segment["text"]).strip()
+        if text:
+            blocks.append(text)
+
+    return "\n\n".join(blocks)
 
 def append_install_line(install_id: str, line: str) -> None:
     with install_lock:
@@ -689,15 +701,17 @@ def run_whisper(job_id: str, file_path: str, seg_mode: str, initial_prompt: str 
             print(f"[Job {job_id[:8]}] 開始 CPU 重試：{file_path}")
             result = transcribe_file(job_id, file_path, initial_prompt=initial_prompt)
 
-        update_job_progress(job_id, 94, "正在產生 SRT 字幕")
+        update_job_progress(job_id, 94, "正在產生字幕檔")
         srt_content = segments_to_srt(result["segments"], seg_mode)
+        txt_content = segments_to_txt(result["segments"], seg_mode)
         with jobs_lock:
             current = jobs.get(job_id)
             if current and current.status != "cancelled":
                 current.status = "done"
                 current.srt = srt_content
+                current.txt = txt_content
                 current.progress = 100
-                current.progress_text = "字幕產生完成"
+                current.progress_text = "轉錄完成"
 
         print(f"[Job {job_id[:8]}] 轉錄完成。")
     except Exception as exc:
@@ -864,6 +878,86 @@ def upload():
     return jsonify({"job_id": job_id})
 
 
+def run_youtube_and_whisper(job_id: str, url: str, seg_mode: str, initial_prompt: str | None):
+    try:
+        import yt_dlp
+    except ImportError:
+        with jobs_lock:
+            if job_id in jobs:
+                jobs[job_id].status = "error"
+                jobs[job_id].error = "尚未安裝 yt-dlp 模組，無法下載 YouTube，請重啟程式自動安裝"
+        return
+
+    with jobs_lock:
+        if job_id in jobs:
+            jobs[job_id].progress_text = "正在取得 YouTube 影片資訊..."
+            jobs[job_id].progress = 5
+
+    try:
+        ydl_opts = {
+            'format': 'm4a/bestaudio/best',
+            'outtmpl': str(UPLOAD_DIR / f"{job_id}.%(ext)s"),
+            'noplaylist': True,
+            'quiet': True,
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            ext = info.get('ext', 'm4a')
+            title = info.get('title', 'YouTube Audio')
+            
+            save_path = str(UPLOAD_DIR / f"{job_id}.{ext}")
+            
+            with jobs_lock:
+                if job_id in jobs:
+                    jobs[job_id].filename = f"{title}.{ext}"
+                    jobs[job_id].file_path = save_path
+                    jobs[job_id].progress_text = "下載完成，準備轉錄"
+                    jobs[job_id].progress = 10
+                    
+            # 下載完成後，交給原本的轉錄流程
+            run_whisper(job_id, save_path, seg_mode, initial_prompt)
+            
+    except Exception as e:
+        print(f"[YouTube] 下載失敗：{e}")
+        with jobs_lock:
+            if job_id in jobs:
+                jobs[job_id].status = "error"
+                jobs[job_id].error = f"YouTube 下載失敗：請確認網址正確或影片是否為非公開"
+
+@app.route("/youtube-download", methods=["POST"])
+def youtube_download():
+    url = (request.form.get("url") or "").strip()
+    if not url:
+        return jsonify({"error": "請提供 YouTube 網址。"}), 400
+
+    if "youtube.com" not in url and "youtu.be" not in url:
+        return jsonify({"error": "請提供有效的 YouTube 網址。"}), 400
+
+    seg_mode = request.form.get("seg_mode", "standard")
+    if seg_mode not in {"fine", "standard", "coarse"}:
+        seg_mode = "standard"
+
+    initial_prompt = (request.form.get("initial_prompt") or "").strip() or None
+
+    job_id = str(uuid.uuid4())
+
+    with jobs_lock:
+        jobs[job_id] = JobState(
+            status="processing",
+            filename="YouTube 影片下載中...",
+            file_path="",
+            progress=2,
+            progress_text="正在排入下載佇列",
+        )
+
+    thread = threading.Thread(target=run_youtube_and_whisper, args=(job_id, url, seg_mode, initial_prompt), daemon=True)
+    thread.start()
+
+    print(f"[YouTube] 建立工作 {job_id[:8]}，網址：{url}，模式：{seg_mode}" + (f"，字典：{initial_prompt[:40]}" if initial_prompt else ""))
+    return jsonify({"job_id": job_id})
+
+
+
 @app.route("/status/<job_id>")
 def status(job_id: str):
     with jobs_lock:
@@ -904,6 +998,25 @@ def download(job_id: str):
         download_name=filename,
     )
 
+@app.route("/download-txt/<job_id>")
+def download_txt(job_id: str):
+    with jobs_lock:
+        job = jobs.get(job_id)
+
+    if not job or job.status != "done" or not job.txt:
+        return "找不到可下載的文字檔。", 404
+
+    filename = Path(job.filename).stem + ".txt"
+    buffer = BytesIO(job.txt.encode("utf-8-sig"))
+    buffer.seek(0)
+    return send_file(
+        buffer,
+        mimetype="text/plain; charset=utf-8",
+        as_attachment=True,
+        download_name=filename,
+    )
+
+
 
 @app.route("/cancel/<job_id>", methods=["POST"])
 def cancel(job_id: str):
@@ -915,6 +1028,15 @@ def cancel(job_id: str):
 
     return jsonify({"ok": True})
 
+@app.route("/shutdown", methods=["POST"])
+def shutdown():
+    # 延遲 1 秒後關閉，讓前端有時間收到 HTTP 回應
+    def shutdown_server():
+        import time
+        time.sleep(0.5)
+        os._exit(0)
+    threading.Thread(target=shutdown_server, daemon=True).start()
+    return jsonify({"ok": True})
 
 @app.route("/unload-model", methods=["POST"])
 def unload_model():

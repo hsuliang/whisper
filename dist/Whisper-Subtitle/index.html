@@ -143,6 +143,27 @@
       margin-top: 10px;
     }
 
+    .tab-btn {
+      flex: 1;
+      padding: 12px;
+      border: 2px solid transparent;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.5);
+      font: inherit;
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .tab-btn.active {
+      background: white;
+      border-color: rgba(255, 107, 165, 0.5);
+      color: var(--brand-1);
+      box-shadow: 0 4px 12px rgba(255, 107, 165, 0.1);
+    }
+
     .dict-btn {
       padding: 7px 14px;
       border-radius: 12px;
@@ -879,29 +900,58 @@
     <main class="grid">
       <section class="card">
         <div class="card-body">
-          <div class="section-head">
-            <h2>上傳媒體檔</h2>
-            <span>拖曳或點一下都可以</span>
+          <div class="tabs" style="display:flex; gap:10px; margin-bottom: 20px;">
+            <button class="tab-btn active" id="tab-upload" type="button" onclick="switchTab('upload')">📁
+              本機影音上傳</button>
+            <button class="tab-btn" id="tab-youtube" type="button" onclick="switchTab('youtube')">🔗 YouTube 網址</button>
           </div>
 
-          <div class="drop-zone" id="drop-zone" role="button" tabindex="0" aria-label="選擇音訊或影片檔">
-            <input type="file" id="file-input" accept=".mp3,.mp4,.wav,.m4a,.ogg,.webm,audio/*,video/*">
-            <div class="drop-inner">
-              <div class="drop-icon">🎧</div>
-              <div class="drop-title">把音訊或影片拖進來</div>
-              <div class="drop-hint">或點這裡挑選檔案，完成後會自動送到本機 Whisper 進行轉錄。</div>
-              <div class="chip-row">
-                <span class="chip">mp3</span>
-                <span class="chip">mp4</span>
-                <span class="chip">wav</span>
-                <span class="chip">m4a</span>
-                <span class="chip">ogg</span>
-                <span class="chip">webm</span>
+          <div id="panel-upload">
+            <div class="section-head">
+              <h2>本機影音上傳</h2>
+              <span>拖曳或點一下都可以</span>
+            </div>
+
+            <div class="drop-zone" id="drop-zone" role="button" tabindex="0" aria-label="選擇音訊或影片檔">
+              <input type="file" id="file-input" accept=".mp3,.mp4,.wav,.m4a,.ogg,.webm,audio/*,video/*">
+              <div class="drop-inner">
+                <div class="drop-icon">🎧</div>
+                <div class="drop-title">把音訊或影片拖進來或點一下加入檔案</div>
+                <div class="drop-hint">(檔案大小限制 4GB)</div>
+                <div class="chip-row">
+                  <span class="chip">mp3</span>
+                  <span class="chip">mp4</span>
+                  <span class="chip">wav</span>
+                  <span class="chip">m4a</span>
+                  <span class="chip">ogg</span>
+                  <span class="chip">webm</span>
+                </div>
               </div>
             </div>
+
+            <div class="filename hidden" id="filename-badge"></div>
           </div>
 
-          <div class="filename hidden" id="filename-badge"></div>
+          <div id="panel-youtube" style="display:none;">
+            <div class="section-head">
+              <h2>下載 YouTube 影片音訊</h2>
+              <span>貼上網址即可自動下載並轉錄</span>
+            </div>
+            <div
+              style="padding: 22px; border-radius: 24px; border: 2px dashed rgba(255, 116, 152, 0.45); background: linear-gradient(180deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.42)), linear-gradient(135deg, rgba(255, 107, 165, 0.1), rgba(111, 115, 255, 0.08));">
+              <div style="display:flex; gap:10px;">
+                <input type="text" id="youtube-url" placeholder="請貼上 YouTube 影片網址 (https://www.youtube.com/watch?v=...)"
+                  style="flex:1; padding: 14px 16px; border-radius: 18px; border: 2px solid rgba(194, 170, 229, 0.4); background: rgba(255,255,255,0.78); font: inherit; font-size: 0.95rem; outline: none;">
+                <button class="btn btn-primary" id="youtube-btn" type="button" onclick="startYoutubeDownload()"
+                  style="flex:0; min-width:120px; white-space:nowrap;">下載並轉錄</button>
+              </div>
+              <div class="drop-hint"
+                style="margin-top: 15px; text-align: left; color: var(--muted); font-size: 0.85rem;">
+                ⚠️ 為了縮短流程，系統會最高音質的音訊檔，不支援清單網址批次下載。
+              </div>
+            </div>
+            <div class="filename hidden" id="youtube-filename-badge" style="margin-top: 15px;"></div>
+          </div>
 
           <div class="section-head" style="margin-top:20px">
             <h2>字幕切割粒度</h2>
@@ -911,15 +961,15 @@
           <div class="mode-grid">
             <button class="seg-btn" data-mode="fine" type="button">
               <strong>細緻</strong>
-              <small>保留較多原始切段，適合後製微調。</small>
+              <small>適合後製微調</small>
             </button>
             <button class="seg-btn seg-active" data-mode="standard" type="button">
               <strong>標準</strong>
-              <small>兼顧閱讀與時間軸，推薦一般使用。</small>
+              <small>適合一般使用</small>
             </button>
             <button class="seg-btn" data-mode="coarse" type="button">
               <strong>寬鬆</strong>
-              <small>盡量合併片段，適合快速閱讀整段內容。</small>
+              <small>適合快速閱讀整段內容</small>
             </button>
           </div>
 
@@ -951,8 +1001,7 @@
               onchange="dictImportFile(event)">
           </div>
           <div style="margin-top:8px; color:var(--muted); font-size:0.8rem; line-height:1.6;">
-            轉錄時會將這些詞彙作為提示傳給 Whisper，有助於正確辨識專業術語、人名與公司名稱。<br>
-            可隨時存檔到瀏覽器，或匯出/匯入 .txt 文字檔分享使用。
+            轉錄時有助於正確辨識專業術語、人名與公司名稱。
           </div>
         </div>
       </section>
@@ -1002,6 +1051,8 @@
 
           <div class="btn-row" style="margin-top:16px">
             <button class="btn btn-primary" type="button" id="download-btn">下載 SRT</button>
+            <button class="btn btn-primary" type="button" id="download-txt-btn"
+              style="background: linear-gradient(90deg, #6f73ff, #82b2ff); box-shadow: 0 10px 22px rgba(111, 115, 255, 0.22);">下載TXT</button>
             <button class="btn btn-soft" type="button" id="reset-btn">重新上傳</button>
           </div>
         </div>
@@ -1025,6 +1076,9 @@
       <button class="tool-btn tool-env" type="button" id="env-check-btn">檢查環境</button>
       <button class="tool-btn tool-install" type="button" id="install-helper-btn">安裝協助</button>
       <button class="tool-btn tool-device" type="button" id="device-panel-btn">裝置 / GPU</button>
+      <button class="tool-btn" type="button" id="shutdown-btn"
+        style="background: rgba(255, 107, 165, 0.1); color: var(--brand-1); border: 1px solid rgba(255, 107, 165, 0.3);">🛑
+        關閉伺服器</button>
     </section>
   </div>
 
@@ -1740,6 +1794,11 @@
       window.location.href = `/download/${state.currentJobId}`;
     });
 
+    document.getElementById("download-txt-btn").addEventListener("click", () => {
+      if (!state.currentJobId) return;
+      window.location.href = `/download-txt/${state.currentJobId}`;
+    });
+
     document.getElementById("reset-btn").addEventListener("click", resetAll);
     document.getElementById("retry-btn").addEventListener("click", () => {
       if (state.file) {
@@ -1869,6 +1928,84 @@
         }
       } catch (_) { }
     }
+
+    function switchTab(tabId) {
+      document.getElementById('tab-upload').classList.remove('active');
+      document.getElementById('tab-youtube').classList.remove('active');
+      document.getElementById('panel-upload').style.display = 'none';
+      document.getElementById('panel-youtube').style.display = 'none';
+
+      document.getElementById('tab-' + tabId).classList.add('active');
+      document.getElementById('panel-' + tabId).style.display = 'block';
+    }
+
+    async function startYoutubeDownload() {
+      const urlInput = document.getElementById("youtube-url");
+      const url = urlInput.value.trim();
+      const btn = document.getElementById("youtube-btn");
+
+      if (!url) {
+        alert("請輸入 YouTube 網址！");
+        urlInput.focus();
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerText = "處理中...";
+
+      let formData = new FormData();
+      formData.append("url", url);
+      formData.append("seg_mode", state.segMode);
+
+      let initialPrompt = document.getElementById("dict-input").value.trim();
+      if (initialPrompt) {
+        formData.append("initial_prompt", initialPrompt);
+      }
+
+      try {
+        let res = await fetch("/youtube-download", {
+          method: "POST",
+          body: formData
+        });
+        let result = await res.json();
+
+        if (res.ok) {
+          state.currentJobId = result.job_id;
+          setProcessingStatus("YouTube: " + url);
+          startPolling();
+        } else {
+          alert(result.error || "提交失敗");
+          btn.disabled = false;
+          btn.innerText = "下載並轉錄";
+        }
+      } catch (err) {
+        alert("網路錯誤或伺服器無回應: " + err.message);
+        console.error(err);
+        btn.disabled = false;
+        btn.innerText = "下載並轉錄";
+      }
+    }
+
+    document.getElementById("shutdown-btn").addEventListener("click", async () => {
+      if (!confirm("確定要完全關閉背景伺服器嗎？\n關閉後若要再次使用，請重新啟動「Whisper 字幕神器.app」。")) return;
+      try {
+        await fetch("/shutdown", { method: "POST" });
+      } catch (err) { }
+
+      document.body.innerHTML = `
+        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; font-family:sans-serif; text-align:center;">
+          <h1 style="color:#ff6ba5; margin-bottom:10px;">伺服器已成功關閉 👋</h1>
+          <p style="color:#666; font-size:1.1rem; max-width:400px; line-height:1.6;">
+            背景系統已停止運作，不再佔用您的電腦資源。<br><br>
+            請關閉此分頁。<br>
+          </p>
+        </div>
+      `;
+
+      setTimeout(() => {
+        window.close();
+      }, 1500);
+    });
 
     setIdleStatus();
     dictAutoLoad();
