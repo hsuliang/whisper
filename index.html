@@ -901,13 +901,13 @@
       <section class="card">
         <div class="card-body">
           <div class="tabs" style="display:flex; gap:10px; margin-bottom: 20px;">
-            <button class="tab-btn active" id="tab-upload" type="button" onclick="switchTab('upload')">📁 上傳媒體檔</button>
+            <button class="tab-btn active" id="tab-upload" type="button" onclick="switchTab('upload')">📁 本機影音上傳</button>
             <button class="tab-btn" id="tab-youtube" type="button" onclick="switchTab('youtube')">🔗 YouTube 網址</button>
           </div>
 
           <div id="panel-upload">
             <div class="section-head">
-              <h2>上傳媒體檔</h2>
+              <h2>本機影音上傳</h2>
               <span>拖曳或點一下都可以</span>
             </div>
 
@@ -915,8 +915,8 @@
               <input type="file" id="file-input" accept=".mp3,.mp4,.wav,.m4a,.ogg,.webm,audio/*,video/*">
               <div class="drop-inner">
                 <div class="drop-icon">🎧</div>
-                <div class="drop-title">把音訊或影片拖進來</div>
-                <div class="drop-hint">或點這裡挑選檔案，完成後會自動送到本機 Whisper 進行轉錄。</div>
+                <div class="drop-title">把音訊或影片拖進來或點一下加入檔案</div>
+                <div class="drop-hint">(檔案大小限制 500MB)</div>
                 <div class="chip-row">
                   <span class="chip">mp3</span>
                   <span class="chip">mp4</span>
@@ -936,14 +936,16 @@
               <h2>下載 YouTube 影片音訊</h2>
               <span>貼上網址即可自動下載並轉錄</span>
             </div>
-            <div style="display:flex; gap:10px; margin-top: 10px;">
-              <input type="text" id="youtube-url" placeholder="請貼上 YouTube 影片網址 (https://www.youtube.com/watch?v=...)" style="flex:1; padding: 14px 16px; border-radius: 18px; border: 2px solid rgba(194, 170, 229, 0.4); background: rgba(255,255,255,0.78); font: inherit; font-size: 0.95rem; outline: none;">
-              <button class="btn btn-primary" id="youtube-btn" type="button" onclick="startYoutubeDownload()" style="flex:0; min-width:120px; white-space:nowrap;">下載並轉錄</button>
+            <div style="padding: 22px; border-radius: 24px; border: 2px dashed rgba(255, 116, 152, 0.45); background: linear-gradient(180deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.42)), linear-gradient(135deg, rgba(255, 107, 165, 0.1), rgba(111, 115, 255, 0.08));">
+              <div style="display:flex; gap:10px;">
+                <input type="text" id="youtube-url" placeholder="請貼上 YouTube 影片網址 (https://www.youtube.com/watch?v=...)" style="flex:1; padding: 14px 16px; border-radius: 18px; border: 2px solid rgba(194, 170, 229, 0.4); background: rgba(255,255,255,0.78); font: inherit; font-size: 0.95rem; outline: none;">
+                <button class="btn btn-primary" id="youtube-btn" type="button" onclick="startYoutubeDownload()" style="flex:0; min-width:120px; white-space:nowrap;">下載並轉錄</button>
+              </div>
+              <div class="drop-hint" style="margin-top: 15px; text-align: left; color: var(--muted); font-size: 0.85rem;">
+                ⚠️ 為了避免下載時間過長，系統會自動切換為只下載<b>最高音質的音訊檔</b>，並且若貼上清單網址，只會下載清單中的<b>第一部影片</b>。
+              </div>
             </div>
-            <div class="drop-hint" style="margin-top: 10px; text-align: left;">
-              ⚠️ 為了避免下載時間過長，系統會自動切換為只下載<b>最高音質的音訊檔</b>，並且若貼上清單網址，只會下載清單中的<b>第一部影片</b>。
-            </div>
-            <div class="filename hidden" id="youtube-filename-badge"></div>
+            <div class="filename hidden" id="youtube-filename-badge" style="margin-top: 15px;"></div>
           </div>
 
           <div class="section-head" style="margin-top:20px">
