@@ -1051,7 +1051,8 @@
 
           <div class="btn-row" style="margin-top:16px">
             <button class="btn btn-primary" type="button" id="download-btn">下載 SRT</button>
-            <button class="btn btn-primary" type="button" id="download-txt-btn" style="background: linear-gradient(90deg, #6f73ff, #82b2ff); box-shadow: 0 10px 22px rgba(111, 115, 255, 0.22);">下載純文字 (TXT)</button>
+            <button class="btn btn-primary" type="button" id="download-txt-btn"
+              style="background: linear-gradient(90deg, #6f73ff, #82b2ff); box-shadow: 0 10px 22px rgba(111, 115, 255, 0.22);">下載TXT</button>
             <button class="btn btn-soft" type="button" id="reset-btn">重新上傳</button>
           </div>
         </div>
@@ -1075,6 +1076,7 @@
       <button class="tool-btn tool-env" type="button" id="env-check-btn">檢查環境</button>
       <button class="tool-btn tool-install" type="button" id="install-helper-btn">安裝協助</button>
       <button class="tool-btn tool-device" type="button" id="device-panel-btn">裝置 / GPU</button>
+      <button class="tool-btn" type="button" id="shutdown-btn" style="background: rgba(255, 107, 165, 0.1); color: var(--brand-1); border: 1px solid rgba(255, 107, 165, 0.3);">🛑 關閉伺服器</button>
     </section>
   </div>
 
@@ -1981,6 +1983,28 @@
         btn.innerText = "下載並轉錄";
       }
     }
+
+    document.getElementById("shutdown-btn").addEventListener("click", async () => {
+      if (!confirm("確定要完全關閉背景伺服器嗎？\n關閉後若要再次使用，請重新啟動「Whisper 字幕神器.app」。")) return;
+      try {
+        await fetch("/shutdown", { method: "POST" });
+      } catch (err) {}
+      
+      document.body.innerHTML = `
+        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; font-family:sans-serif; text-align:center;">
+          <h1 style="color:#ff6ba5; margin-bottom:10px;">伺服器已成功關閉 👋</h1>
+          <p style="color:#666; font-size:1.1rem; max-width:400px; line-height:1.6;">
+            背景系統已完全停止運作，不再佔用您的電腦資源。<br><br>
+            這頁分頁即將自動關閉。<br>
+            （如果瀏覽器沒有自動關閉分頁，請您手動關閉即可！）
+          </p>
+        </div>
+      `;
+      
+      setTimeout(() => {
+        window.close();
+      }, 1500);
+    });
 
     setIdleStatus();
     dictAutoLoad();

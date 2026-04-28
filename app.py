@@ -1028,6 +1028,15 @@ def cancel(job_id: str):
 
     return jsonify({"ok": True})
 
+@app.route("/shutdown", methods=["POST"])
+def shutdown():
+    # 延遲 1 秒後關閉，讓前端有時間收到 HTTP 回應
+    def shutdown_server():
+        import time
+        time.sleep(0.5)
+        os._exit(0)
+    threading.Thread(target=shutdown_server, daemon=True).start()
+    return jsonify({"ok": True})
 
 @app.route("/unload-model", methods=["POST"])
 def unload_model():
