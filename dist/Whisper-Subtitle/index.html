@@ -1,0 +1,1878 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Whisper 字幕神器 For Mac</title>
+  <style>
+    :root {
+      --bg-1: #fff2f8;
+      --bg-2: #fff6e8;
+      --bg-3: #ecf5ff;
+      --card: rgba(255, 255, 255, 0.88);
+      --line: rgba(255, 255, 255, 0.54);
+      --text: #3f3154;
+      --muted: #8f86a3;
+      --brand-1: #ff6ba5;
+      --brand-2: #ff9950;
+      --brand-3: #6f73ff;
+      --ok: #1f9d68;
+      --warn: #d07b00;
+      --danger: #d44d6d;
+      --shadow: 0 18px 48px rgba(117, 74, 149, 0.14);
+      --radius-xl: 28px;
+      --radius-lg: 20px;
+      --radius-md: 14px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      min-height: 100vh;
+      font-family: "Segoe UI", "Microsoft JhengHei", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(255, 137, 188, 0.28), transparent 34%),
+        radial-gradient(circle at top right, rgba(121, 112, 255, 0.18), transparent 28%),
+        linear-gradient(135deg, var(--bg-1), var(--bg-2) 44%, var(--bg-3));
+      padding: 20px 14px 40px;
+    }
+
+    .page {
+      width: min(1100px, 100%);
+      margin: 0 auto;
+    }
+
+    .hero {
+      position: relative;
+      overflow: hidden;
+      padding: 26px 22px;
+      border-radius: 30px;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.58));
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+      margin-bottom: 18px;
+    }
+
+    .hero::before,
+    .hero::after {
+      content: "";
+      position: absolute;
+      border-radius: 999px;
+      filter: blur(6px);
+    }
+
+    .hero::before {
+      width: 180px;
+      height: 180px;
+      right: -30px;
+      top: -36px;
+      background: rgba(255, 107, 165, 0.18);
+    }
+
+    .hero::after {
+      width: 120px;
+      height: 120px;
+      left: -14px;
+      bottom: -18px;
+      background: rgba(111, 115, 255, 0.14);
+    }
+
+    .hero-logo {
+      width: 56px;
+      height: 56px;
+      border-radius: 16px;
+      object-fit: contain;
+      vertical-align: middle;
+      margin-right: 10px;
+      box-shadow: 0 6px 16px rgba(117, 74, 149, 0.12);
+    }
+
+    .hero h1 {
+      position: relative;
+      z-index: 1;
+      font-size: clamp(1.8rem, 5vw, 2.9rem);
+      font-weight: 900;
+      letter-spacing: 1px;
+      line-height: 1.15;
+      background: linear-gradient(90deg, #f04685, #ff8d4d, #6f73ff);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .hero-credit {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #a08cb3;
+      margin-left: 12px;
+      text-decoration: none;
+      transition: color 0.2s;
+      white-space: nowrap;
+      align-self: flex-end;
+      margin-bottom: 4px;
+    }
+
+    .hero-credit:hover {
+      color: #7c5ea8;
+      text-decoration: underline;
+    }
+
+    .hero p {
+      position: relative;
+      z-index: 1;
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 0.96rem;
+      line-height: 1.7;
+      max-width: 680px;
+    }
+
+    .dict-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .dict-btn {
+      padding: 7px 14px;
+      border-radius: 12px;
+      border: 1.5px solid rgba(194, 170, 229, 0.5);
+      background: rgba(255, 255, 255, 0.82);
+      color: #6a5280;
+      font: inherit;
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.18s ease;
+    }
+
+    .dict-btn:hover {
+      transform: translateY(-1px);
+      border-color: rgba(255, 107, 165, 0.5);
+      background: rgba(255, 255, 255, 0.95);
+    }
+
+    .dict-btn:active {
+      transform: translateY(0);
+    }
+
+    .hero-badges {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .badge {
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.78);
+      border: 1px solid rgba(255, 255, 255, 0.66);
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #735383;
+      box-shadow: 0 8px 18px rgba(154, 102, 140, 0.08);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1.08fr 0.92fr;
+      gap: 18px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      backdrop-filter: blur(12px);
+    }
+
+    .card-body {
+      padding: 22px;
+    }
+
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .section-head h2 {
+      font-size: 1.16rem;
+      font-weight: 900;
+    }
+
+    .section-head span {
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+
+    .drop-zone {
+      position: relative;
+      display: grid;
+      place-items: center;
+      min-height: 220px;
+      padding: 22px;
+      border-radius: 24px;
+      border: 2px dashed rgba(255, 116, 152, 0.45);
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.42)),
+        linear-gradient(135deg, rgba(255, 107, 165, 0.1), rgba(111, 115, 255, 0.08));
+      transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+      cursor: pointer;
+    }
+
+    .drop-zone:hover,
+    .drop-zone.drag-over {
+      transform: translateY(-2px);
+      border-color: rgba(255, 116, 152, 0.9);
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.56)),
+        linear-gradient(135deg, rgba(255, 107, 165, 0.14), rgba(111, 115, 255, 0.12));
+    }
+
+    .drop-inner {
+      text-align: center;
+    }
+
+    .drop-icon {
+      font-size: 3.8rem;
+      line-height: 1;
+      animation: floaty 3s ease-in-out infinite;
+    }
+
+    @keyframes floaty {
+
+      0%,
+      100% {
+        transform: translateY(0);
+      }
+
+      50% {
+        transform: translateY(-8px);
+      }
+    }
+
+    .drop-title {
+      margin-top: 12px;
+      font-size: 1.14rem;
+      font-weight: 900;
+    }
+
+    .drop-hint {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 0.88rem;
+      line-height: 1.7;
+    }
+
+    .chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      margin-top: 14px;
+    }
+
+    .chip {
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.78);
+      border: 1px solid rgba(255, 255, 255, 0.72);
+      color: #8a5d91;
+      font-size: 0.78rem;
+      font-weight: 700;
+    }
+
+    input[type="file"] {
+      display: none;
+    }
+
+    .filename {
+      margin-top: 16px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.75);
+      color: #7a6189;
+      font-size: 0.88rem;
+      font-weight: 700;
+      word-break: break-all;
+    }
+
+    .mode-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .seg-btn {
+      border: 2px solid rgba(194, 170, 229, 0.5);
+      border-radius: 18px;
+      padding: 14px 10px;
+      background: rgba(255, 255, 255, 0.8);
+      color: #8b7da3;
+      font: inherit;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      text-align: center;
+    }
+
+    .seg-btn strong {
+      display: block;
+      color: #66477d;
+      font-size: 0.96rem;
+      margin-bottom: 4px;
+    }
+
+    .seg-btn small {
+      display: block;
+      font-size: 0.75rem;
+      line-height: 1.5;
+    }
+
+    .seg-btn:hover {
+      transform: translateY(-2px);
+      border-color: rgba(255, 107, 165, 0.6);
+    }
+
+    .seg-active {
+      border-color: transparent;
+      background: linear-gradient(135deg, rgba(255, 107, 165, 0.18), rgba(111, 115, 255, 0.16));
+      box-shadow: 0 12px 22px rgba(135, 97, 173, 0.14);
+    }
+
+    .progress-panel,
+    .error-panel,
+    .result-panel {
+      min-height: 100%;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .status-card {
+      padding: 26px 22px;
+      border-radius: 24px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.55));
+      border: 1px solid rgba(255, 255, 255, 0.7);
+      min-height: 280px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+    }
+
+    .spinner {
+      width: 74px;
+      height: 74px;
+      border-radius: 50%;
+      border: 6px solid rgba(255, 202, 225, 0.8);
+      border-top-color: var(--brand-1);
+      border-right-color: var(--brand-2);
+      border-bottom-color: var(--brand-3);
+      animation: spin 0.9s linear infinite;
+      margin-bottom: 18px;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .status-title {
+      font-size: 1.22rem;
+      font-weight: 900;
+      margin-bottom: 8px;
+    }
+
+    .status-text {
+      color: var(--muted);
+      line-height: 1.8;
+      font-size: 0.92rem;
+    }
+
+    .elapsed {
+      margin-top: 12px;
+      font-size: 0.84rem;
+      color: #9d93af;
+    }
+
+    .progress-meta {
+      width: 100%;
+      max-width: 320px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 16px;
+      color: #716286;
+      font-size: 0.82rem;
+      font-weight: 800;
+      text-align: left;
+    }
+
+    .progress-meta span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .progress-wrap {
+      width: 100%;
+      max-width: 320px;
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(229, 214, 255, 0.6);
+      overflow: hidden;
+      margin-top: 8px;
+    }
+
+    .progress-fill {
+      width: 0%;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--brand-1), var(--brand-2), var(--brand-3));
+      background-size: 220% 100%;
+      animation: shimmer 1.4s linear infinite;
+      transition: width 0.28s ease;
+    }
+
+    @keyframes shimmer {
+      0% {
+        background-position: 180% 0;
+      }
+
+      100% {
+        background-position: -40% 0;
+      }
+    }
+
+    .result-banner {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .result-icon {
+      width: 54px;
+      height: 54px;
+      display: grid;
+      place-items: center;
+      border-radius: 18px;
+      background: linear-gradient(135deg, rgba(55, 208, 132, 0.18), rgba(87, 200, 255, 0.16));
+      font-size: 1.6rem;
+    }
+
+    .result-title {
+      font-size: 1.18rem;
+      font-weight: 900;
+      color: var(--ok);
+    }
+
+    .result-subtitle {
+      color: var(--muted);
+      margin-top: 4px;
+      font-size: 0.88rem;
+    }
+
+    .stats-card {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .stat-item {
+      padding: 14px 12px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.76);
+      border: 1px solid rgba(255, 255, 255, 0.72);
+    }
+
+    .stat-item strong {
+      display: block;
+      font-size: 1.08rem;
+      margin-bottom: 6px;
+    }
+
+    .stat-item span {
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+
+    .preview-wrap {
+      border-radius: 20px;
+      background: #191b2d;
+      color: #d6f6e1;
+      padding: 18px;
+      min-height: 260px;
+      max-height: 410px;
+      overflow: auto;
+      font-family: "Consolas", "Courier New", monospace;
+      font-size: 0.83rem;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+    }
+
+    .preview-wrap::-webkit-scrollbar,
+    .terminal::-webkit-scrollbar,
+    .modal-body::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .preview-wrap::-webkit-scrollbar-thumb,
+    .terminal::-webkit-scrollbar-thumb,
+    .modal-body::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.16);
+      border-radius: 999px;
+    }
+
+    .btn-row,
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .btn,
+    .tool-btn {
+      border: none;
+      border-radius: 16px;
+      font: inherit;
+      font-weight: 900;
+      cursor: pointer;
+      transition: transform 0.18s ease, filter 0.18s ease, box-shadow 0.18s ease;
+    }
+
+    .btn:hover,
+    .tool-btn:hover {
+      transform: translateY(-2px);
+      filter: brightness(1.03);
+    }
+
+    .btn:disabled,
+    .tool-btn:disabled {
+      cursor: not-allowed;
+      opacity: 0.58;
+      transform: none;
+      filter: none;
+      box-shadow: none;
+    }
+
+    .btn {
+      padding: 13px 18px;
+      flex: 1;
+      min-width: 140px;
+    }
+
+    .tool-btn {
+      padding: 12px 15px;
+      flex: 1;
+      min-width: 130px;
+    }
+
+    .btn-primary {
+      color: white;
+      background: linear-gradient(90deg, var(--brand-1), var(--brand-2));
+      box-shadow: 0 10px 22px rgba(255, 107, 165, 0.22);
+    }
+
+    .btn-soft {
+      color: #6c5c7d;
+      background: linear-gradient(90deg, rgba(255, 255, 255, 0.88), rgba(246, 240, 255, 0.9));
+      box-shadow: 0 10px 22px rgba(142, 123, 175, 0.12);
+    }
+
+    .btn-danger {
+      color: white;
+      background: linear-gradient(90deg, #ff8b8b, #ff5e7b);
+      box-shadow: 0 10px 22px rgba(255, 102, 136, 0.18);
+    }
+
+    .tool-env {
+      color: white;
+      background: linear-gradient(90deg, #36c0a9, #2d89ff);
+    }
+
+    .tool-install {
+      color: #6a4c00;
+      background: linear-gradient(90deg, #ffd66c, #ffbd5c);
+    }
+
+    .tool-device {
+      color: white;
+      background: linear-gradient(90deg, #5f5bd7, #8571ff);
+    }
+
+    .error-box {
+      width: 100%;
+      padding: 18px;
+      border-radius: 20px;
+      background: rgba(255, 241, 244, 0.92);
+      color: var(--danger);
+      line-height: 1.8;
+      font-size: 0.92rem;
+      border: 1px solid rgba(255, 132, 164, 0.24);
+      margin-top: 14px;
+    }
+
+    .terminal {
+      border-radius: 20px;
+      background: #111522;
+      color: #b6ccff;
+      min-height: 260px;
+      max-height: 340px;
+      overflow: auto;
+      padding: 18px;
+      font-family: "Consolas", "Courier New", monospace;
+      font-size: 0.8rem;
+      line-height: 1.7;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+    }
+
+    .line-ok {
+      color: #57d38c;
+    }
+
+    .line-err {
+      color: #ff7f9d;
+    }
+
+    .line-cmd {
+      color: #e3b8ff;
+    }
+
+    .line-note {
+      color: #a8afc6;
+    }
+
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding: 20px;
+      background: rgba(36, 22, 56, 0.45);
+      backdrop-filter: blur(4px);
+      z-index: 40;
+    }
+
+    .modal-panel {
+      width: min(760px, 100%);
+      max-height: 88vh;
+      display: flex;
+      flex-direction: column;
+      background: rgba(255, 255, 255, 0.96);
+      border: 1px solid rgba(255, 255, 255, 0.72);
+      border-radius: 28px;
+      box-shadow: 0 28px 60px rgba(69, 38, 99, 0.22);
+      overflow: hidden;
+      animation: rise 0.25s ease;
+    }
+
+    @keyframes rise {
+      from {
+        transform: translateY(24px);
+        opacity: 0;
+      }
+
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+
+    .modal-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      padding: 20px 22px 16px;
+      border-bottom: 1px solid rgba(224, 215, 238, 0.7);
+    }
+
+    .modal-head h3 {
+      font-size: 1.08rem;
+      font-weight: 900;
+    }
+
+    .modal-close {
+      width: 36px;
+      height: 36px;
+      border: none;
+      border-radius: 50%;
+      background: rgba(241, 233, 255, 0.9);
+      color: #74548f;
+      font-size: 1rem;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    .modal-body {
+      overflow: auto;
+      padding: 20px 22px 24px;
+    }
+
+    .summary-banner {
+      padding: 14px 16px;
+      border-radius: 18px;
+      margin-bottom: 16px;
+      line-height: 1.7;
+      font-weight: 700;
+    }
+
+    .summary-ok {
+      background: rgba(220, 255, 237, 0.85);
+      color: #138055;
+    }
+
+    .summary-warn {
+      background: rgba(255, 244, 215, 0.85);
+      color: #9e6a00;
+    }
+
+    .summary-err {
+      background: rgba(255, 232, 239, 0.85);
+      color: #b33f61;
+    }
+
+    .env-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 18px;
+    }
+
+    .env-table th,
+    .env-table td {
+      padding: 12px 10px;
+      text-align: left;
+      border-bottom: 1px solid rgba(233, 227, 242, 0.85);
+      vertical-align: top;
+    }
+
+    .env-table th {
+      color: var(--muted);
+      font-size: 0.8rem;
+      font-weight: 800;
+    }
+
+    .env-name {
+      font-weight: 900;
+      margin-bottom: 4px;
+    }
+
+    .env-note {
+      color: var(--muted);
+      font-size: 0.82rem;
+      line-height: 1.6;
+      word-break: break-all;
+    }
+
+    .status-emoji {
+      font-size: 1.2rem;
+    }
+
+    .device-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .device-card {
+      padding: 16px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.78);
+      border: 1px solid rgba(234, 228, 246, 0.9);
+    }
+
+    .device-card strong {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 0.96rem;
+    }
+
+    .device-card span {
+      display: block;
+      color: var(--muted);
+      line-height: 1.7;
+      font-size: 0.84rem;
+      word-break: break-word;
+    }
+
+    @media (max-width: 920px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 640px) {
+      body {
+        padding: 14px 10px 30px;
+      }
+
+      .hero {
+        padding: 22px 18px;
+      }
+
+      .card-body {
+        padding: 18px;
+      }
+
+      .mode-grid,
+      .stats-card,
+      .device-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .modal-overlay {
+        padding: 10px;
+        align-items: flex-end;
+      }
+
+      .modal-panel {
+        border-radius: 24px 24px 18px 18px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="page">
+    <section class="hero">
+      <h1><img src="/Aliang250.png" alt="Logo" class="hero-logo">🎵 Whisper 字幕神器 For Mac<a
+          href="https://github.com/vincentchiou/whisper" target="_blank" rel="noopener" class="hero-credit">修改自邱文盛神作</a>
+      </h1>
+      <div class="hero-badges">
+        <div class="badge">本機轉錄</div>
+        <div class="badge">支援 mp3/mp4/wav/m4a/ogg/webm</div>
+        <div class="badge">支援 CPU / GPU</div>
+        <div class="badge">輸出 UTF-8 BOM SRT</div>
+        <div class="badge">可檢查環境與安裝套件</div>
+      </div>
+    </section>
+
+    <main class="grid">
+      <section class="card">
+        <div class="card-body">
+          <div class="section-head">
+            <h2>上傳媒體檔</h2>
+            <span>拖曳或點一下都可以</span>
+          </div>
+
+          <div class="drop-zone" id="drop-zone" role="button" tabindex="0" aria-label="選擇音訊或影片檔">
+            <input type="file" id="file-input" accept=".mp3,.mp4,.wav,.m4a,.ogg,.webm,audio/*,video/*">
+            <div class="drop-inner">
+              <div class="drop-icon">🎧</div>
+              <div class="drop-title">把音訊或影片拖進來</div>
+              <div class="drop-hint">或點這裡挑選檔案，完成後會自動送到本機 Whisper 進行轉錄。</div>
+              <div class="chip-row">
+                <span class="chip">mp3</span>
+                <span class="chip">mp4</span>
+                <span class="chip">wav</span>
+                <span class="chip">m4a</span>
+                <span class="chip">ogg</span>
+                <span class="chip">webm</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="filename hidden" id="filename-badge"></div>
+
+          <div class="section-head" style="margin-top:20px">
+            <h2>字幕切割粒度</h2>
+            <span>依閱讀習慣調整</span>
+          </div>
+
+          <div class="mode-grid">
+            <button class="seg-btn" data-mode="fine" type="button">
+              <strong>細緻</strong>
+              <small>保留較多原始切段，適合後製微調。</small>
+            </button>
+            <button class="seg-btn seg-active" data-mode="standard" type="button">
+              <strong>標準</strong>
+              <small>兼顧閱讀與時間軸，推薦一般使用。</small>
+            </button>
+            <button class="seg-btn" data-mode="coarse" type="button">
+              <strong>寬鬆</strong>
+              <small>盡量合併片段，適合快速閱讀整段內容。</small>
+            </button>
+          </div>
+
+          <div class="section-head" style="margin-top:20px">
+            <h2>📖 字典功能</h2>
+            <span>提升專有名詞辨識正確率</span>
+          </div>
+          <textarea id="dict-input" rows="3" placeholder="輸入專有名詞、公司行號或人名，用逗號或空格分隔。例如：謝唈科技, OpenAI, 王小明" style="
+            width: 100%;
+            padding: 14px 16px;
+            border-radius: 18px;
+            border: 2px solid rgba(194, 170, 229, 0.4);
+            background: rgba(255,255,255,0.78);
+            color: var(--text);
+            font: inherit;
+            font-size: 0.92rem;
+            line-height: 1.6;
+            resize: vertical;
+            outline: none;
+            transition: border-color 0.2s ease;
+          "></textarea>
+          <div class="dict-toolbar">
+            <button class="dict-btn" type="button" onclick="dictSave()" title="儲存到瀏覽器">💾 存檔</button>
+            <button class="dict-btn" type="button" onclick="dictLoad()" title="從瀏覽器載入">📂 載入</button>
+            <button class="dict-btn" type="button" onclick="dictExport()" title="匯出成 .txt 檔">📤 匯出</button>
+            <button class="dict-btn" type="button" onclick="dictImportClick()" title="從 .txt 檔匯入">📥 匯入</button>
+            <button class="dict-btn" type="button" onclick="dictClear()" title="清空字典內容">🗑️ 清空</button>
+            <input type="file" id="dict-file-input" accept=".txt,.csv" style="display:none"
+              onchange="dictImportFile(event)">
+          </div>
+          <div style="margin-top:8px; color:var(--muted); font-size:0.8rem; line-height:1.6;">
+            轉錄時會將這些詞彙作為提示傳給 Whisper，有助於正確辨識專業術語、人名與公司名稱。<br>
+            可隨時存檔到瀏覽器，或匯出/匯入 .txt 文字檔分享使用。
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-body progress-panel" id="progress-area">
+          <div class="status-card">
+            <div class="spinner"></div>
+            <div class="status-title" id="status-title">準備就緒</div>
+            <div class="status-text" id="status-text">請先選擇音訊或影片檔，系統會在本機進行 Whisper 轉錄。</div>
+            <div class="elapsed hidden" id="elapsed-text"></div>
+            <div class="progress-meta hidden" id="progress-meta">
+              <span id="progress-label">等待上傳</span>
+              <strong id="progress-percent">0%</strong>
+            </div>
+            <div class="progress-wrap hidden" id="progress-wrap">
+              <div class="progress-fill" id="progress-fill"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-body result-panel hidden" id="result-area">
+          <div class="result-banner">
+            <div class="result-icon">✨</div>
+            <div>
+              <div class="result-title">字幕產生完成</div>
+              <div class="result-subtitle" id="result-subtitle">可以直接預覽、下載，或重新上傳其他檔案。</div>
+            </div>
+          </div>
+
+          <div class="stats-card">
+            <div class="stat-item">
+              <strong id="stat-segments">0</strong>
+              <span>字幕段數</span>
+            </div>
+            <div class="stat-item">
+              <strong id="stat-lines">0</strong>
+              <span>預覽行數</span>
+            </div>
+            <div class="stat-item">
+              <strong id="stat-filename">-</strong>
+              <span>輸出檔名</span>
+            </div>
+          </div>
+
+          <div class="preview-wrap" id="srt-preview"></div>
+
+          <div class="btn-row" style="margin-top:16px">
+            <button class="btn btn-primary" type="button" id="download-btn">下載 SRT</button>
+            <button class="btn btn-soft" type="button" id="reset-btn">重新上傳</button>
+          </div>
+        </div>
+
+        <div class="card-body error-panel hidden" id="error-area">
+          <div class="status-card">
+            <div class="drop-icon">⚠️</div>
+            <div class="status-title">發生問題了</div>
+            <div class="status-text">這次轉錄沒有成功，下面列出伺服器回傳的訊息。</div>
+            <div class="error-box" id="error-msg"></div>
+            <div class="btn-row" style="width:100%; margin-top:14px">
+              <button class="btn btn-soft" type="button" id="retry-btn">再試一次</button>
+              <button class="btn btn-danger" type="button" id="cancel-btn">清除狀態</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <section class="toolbar" style="margin-top:18px">
+      <button class="tool-btn tool-env" type="button" id="env-check-btn">檢查環境</button>
+      <button class="tool-btn tool-install" type="button" id="install-helper-btn">安裝協助</button>
+      <button class="tool-btn tool-device" type="button" id="device-panel-btn">裝置 / GPU</button>
+    </section>
+  </div>
+
+  <div class="modal-overlay hidden" id="modal-overlay">
+    <div class="modal-panel">
+      <div class="modal-head">
+        <h3 id="modal-title">資訊視窗</h3>
+        <button class="modal-close" type="button" id="modal-close">✕</button>
+      </div>
+      <div class="modal-body" id="modal-body"></div>
+    </div>
+  </div>
+
+  <script>
+    // 中文註解：集中管理目前前端狀態，避免不同功能互相踩到。
+    const state = {
+      file: null,
+      segMode: "standard",
+      currentJobId: null,
+      currentResultFilename: "",
+      pollingTimer: null,
+      startTime: 0,
+      elapsedTimer: null,
+      installPollTimer: null,
+      lastInstallId: null
+    };
+
+    const dropZone = document.getElementById("drop-zone");
+    const fileInput = document.getElementById("file-input");
+    const filenameBadge = document.getElementById("filename-badge");
+    const progressArea = document.getElementById("progress-area");
+    const resultArea = document.getElementById("result-area");
+    const errorArea = document.getElementById("error-area");
+    const statusTitle = document.getElementById("status-title");
+    const statusText = document.getElementById("status-text");
+    const elapsedText = document.getElementById("elapsed-text");
+    const progressMeta = document.getElementById("progress-meta");
+    const progressLabel = document.getElementById("progress-label");
+    const progressPercent = document.getElementById("progress-percent");
+    const progressWrap = document.getElementById("progress-wrap");
+    const progressFill = document.getElementById("progress-fill");
+    const srtPreview = document.getElementById("srt-preview");
+    const errorMsg = document.getElementById("error-msg");
+    const resultSubtitle = document.getElementById("result-subtitle");
+    const statSegments = document.getElementById("stat-segments");
+    const statLines = document.getElementById("stat-lines");
+    const statFilename = document.getElementById("stat-filename");
+    const modalOverlay = document.getElementById("modal-overlay");
+    const modalTitle = document.getElementById("modal-title");
+    const modalBody = document.getElementById("modal-body");
+    const modalClose = document.getElementById("modal-close");
+
+    function showPanel(name) {
+      progressArea.classList.toggle("hidden", name !== "progress");
+      resultArea.classList.toggle("hidden", name !== "result");
+      errorArea.classList.toggle("hidden", name !== "error");
+    }
+
+    function resetTimers() {
+      if (state.pollingTimer) {
+        clearInterval(state.pollingTimer);
+        state.pollingTimer = null;
+      }
+      if (state.elapsedTimer) {
+        clearInterval(state.elapsedTimer);
+        state.elapsedTimer = null;
+      }
+    }
+
+    function updateElapsed() {
+      const seconds = Math.max(0, Math.floor((Date.now() - state.startTime) / 1000));
+      const minutes = Math.floor(seconds / 60);
+      const remainSeconds = seconds % 60;
+      elapsedText.textContent = `已等待 ${minutes} 分 ${remainSeconds} 秒`;
+    }
+
+    function updateProgress(progress, message) {
+      const percent = Math.max(0, Math.min(100, Math.round(Number(progress) || 0)));
+      progressMeta.classList.remove("hidden");
+      progressWrap.classList.remove("hidden");
+      progressFill.style.width = `${percent}%`;
+      progressPercent.textContent = `${percent}%`;
+      progressLabel.textContent = message || "正在處理";
+      if (message) {
+        statusText.textContent = message;
+      }
+    }
+
+    function setIdleStatus() {
+      showPanel("progress");
+      statusTitle.textContent = "準備就緒";
+      statusText.textContent = "請先選擇音訊或影片檔，系統會在本機進行 Whisper 轉錄。";
+      elapsedText.classList.add("hidden");
+      progressMeta.classList.add("hidden");
+      progressWrap.classList.add("hidden");
+      progressFill.style.width = "0%";
+      progressPercent.textContent = "0%";
+      progressLabel.textContent = "等待上傳";
+    }
+
+    function setProcessingStatus(fileName) {
+      showPanel("progress");
+      statusTitle.textContent = "Whisper 正在辨識中";
+      statusText.textContent = `正在處理 ${fileName}，首次載入模型或 CPU 模式會比較久，請稍等。`;
+      elapsedText.classList.remove("hidden");
+      updateProgress(1, "正在上傳檔案");
+      state.startTime = Date.now();
+      updateElapsed();
+      if (state.elapsedTimer) clearInterval(state.elapsedTimer);
+      state.elapsedTimer = setInterval(updateElapsed, 1000);
+    }
+
+    function setError(message) {
+      resetTimers();
+      showPanel("error");
+      errorMsg.textContent = message || "發生未知錯誤。";
+    }
+
+    function openModal(title, html) {
+      modalTitle.textContent = title;
+      modalBody.innerHTML = html;
+      modalOverlay.classList.remove("hidden");
+      document.body.style.overflow = "hidden";
+    }
+
+    function closeModal() {
+      modalOverlay.classList.add("hidden");
+      document.body.style.overflow = "";
+      if (state.installPollTimer) {
+        clearInterval(state.installPollTimer);
+        state.installPollTimer = null;
+      }
+    }
+
+    function escapeHtml(text) {
+      return String(text)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function setFile(file) {
+      state.file = file || null;
+      if (!state.file) {
+        filenameBadge.classList.add("hidden");
+        filenameBadge.textContent = "";
+        return;
+      }
+
+      filenameBadge.classList.remove("hidden");
+      filenameBadge.textContent = `目前檔案：${state.file.name}`;
+    }
+
+    async function startUpload(file) {
+      if (!file) return;
+
+      resetTimers();
+      state.currentJobId = null;
+      state.currentResultFilename = "";
+      setProcessingStatus(file.name);
+
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("seg_mode", state.segMode);
+
+      const dictText = (document.getElementById("dict-input").value || "").trim();
+      if (dictText) {
+        formData.append("initial_prompt", dictText);
+      }
+
+      try {
+        const response = await fetch("/upload", { method: "POST", body: formData });
+        const data = await response.json();
+
+        if (!response.ok || data.error || !data.job_id) {
+          throw new Error(data.error || `HTTP ${response.status}`);
+        }
+
+        state.currentJobId = data.job_id;
+        startPolling();
+      } catch (error) {
+        setError(`上傳失敗：${error.message}`);
+      }
+    }
+
+    function previewSrt(srt, maxBlocks = 5) {
+      const blocks = String(srt || "")
+        .trim()
+        .split(/\r?\n\s*\r?\n/)
+        .map(block => block.trim())
+        .filter(Boolean);
+
+      if (blocks.length <= maxBlocks) {
+        return blocks.join("\n\n");
+      }
+
+      return `${blocks.slice(0, maxBlocks).join("\n\n")}\n\n...（僅顯示前 ${maxBlocks} 段，請下載完整 SRT）`;
+    }
+
+    function renderResult(srt, filename) {
+      resetTimers();
+      state.currentResultFilename = filename || "result.srt";
+
+      const lines = srt.split(/\r?\n/);
+      const segmentCount = srt.split(/\r?\n\r?\n/).filter(block => block.trim()).length;
+      const previewLines = previewSrt(srt, 5);
+
+      resultSubtitle.textContent = `轉錄完成，輸出檔名為 ${state.currentResultFilename}`;
+      statSegments.textContent = segmentCount;
+      statLines.textContent = lines.filter(line => line.trim()).length;
+      statFilename.textContent = state.currentResultFilename;
+      srtPreview.textContent = previewLines;
+      showPanel("result");
+    }
+
+    function startPolling() {
+      resetTimers();
+      updateElapsed();
+      state.elapsedTimer = setInterval(updateElapsed, 1000);
+
+      state.pollingTimer = setInterval(async () => {
+        if (!state.currentJobId) return;
+
+        try {
+          const response = await fetch(`/status/${state.currentJobId}`);
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.error_msg || data.status || `HTTP ${response.status}`);
+          }
+
+          if (data.status === "done") {
+            updateProgress(100, data.progress_text || "字幕產生完成");
+            renderResult(data.srt || "", data.filename || "result.srt");
+          } else if (data.status === "error") {
+            setError(data.error_msg || "伺服器回報轉錄失敗。");
+          } else if (data.status === "cancelled") {
+            setError("已取消轉錄。");
+          } else if (data.status === "not_found") {
+            setError("找不到這筆工作，請重新上傳。");
+          } else {
+            updateProgress(data.progress || 0, data.progress_text || "正在轉錄");
+          }
+        } catch (error) {
+          setError(`輪詢狀態失敗：${error.message}`);
+        }
+      }, 1400);
+    }
+
+    function resetAll() {
+      resetTimers();
+      state.currentJobId = null;
+      state.currentResultFilename = "";
+      setFile(null);
+      fileInput.value = "";
+      setIdleStatus();
+    }
+
+    function setSegMode(mode) {
+      state.segMode = mode;
+      document.querySelectorAll(".seg-btn").forEach(button => {
+        button.classList.toggle("seg-active", button.dataset.mode === mode);
+      });
+    }
+
+    function createTerminalLine(text, cls = "") {
+      return `<div class="${cls}">${escapeHtml(text)}</div>`;
+    }
+
+    async function runEnvCheck() {
+      openModal("環境檢查", `
+        <div class="status-card" style="min-height:220px">
+          <div class="spinner"></div>
+          <div class="status-title">正在檢查環境</div>
+          <div class="status-text">系統正在確認 Python、Flask、Whisper、PyTorch 與 ffmpeg。</div>
+        </div>
+      `);
+
+      try {
+        const response = await fetch("/env-check");
+        const data = await response.json();
+        renderEnvCheckResult(data);
+      } catch (error) {
+        modalBody.innerHTML = `<div class="summary-banner summary-err">環境檢查失敗：${escapeHtml(error.message)}</div>`;
+      }
+    }
+
+    function renderEnvCheckResult(data) {
+      const items = ["python", "flask", "whisper", "torch", "ffmpeg"];
+      const missing = data.missing_pip || [];
+      const pythonOk = !data.python || data.python.ok;
+      const pythonBlocker = data.python_blocker || "";
+      const allGood = pythonOk && missing.length === 0 && data.ffmpeg && data.ffmpeg.ok;
+
+      const summaryClass = allGood ? "summary-ok" : (pythonBlocker ? "summary-err" : (missing.length > 0 ? "summary-warn" : "summary-err"));
+      const summaryText = allGood
+        ? "環境檢查完成，主要元件都已就緒，可以開始轉錄。"
+        : pythonBlocker
+          ? "Python 版本需要先調整，避免 PyTorch / Whisper 安裝失敗。"
+          : "環境檢查完成，部分項目需要補安裝或確認設定。";
+
+      const rows = items.map(key => {
+        const item = data[key] || {};
+        const icon = item.ok ? "✅" : "⚠️";
+        const version = item.version ? `版本：${escapeHtml(item.version)}` : "版本：—";
+        const note = item.note ? escapeHtml(item.note) : "—";
+        return `
+          <tr>
+            <td style="width:46px"><span class="status-emoji">${icon}</span></td>
+            <td>
+              <div class="env-name">${escapeHtml(item.label || key)}</div>
+              <div class="env-note">${version}</div>
+            </td>
+            <td><div class="env-note">${note}</div></td>
+          </tr>
+        `;
+      }).join("");
+
+      const blockerCard = pythonBlocker
+        ? `<div class="device-card" style="margin-bottom:14px">
+            <strong>Python 版本提醒</strong>
+            <span>${escapeHtml(pythonBlocker)}</span>
+          </div>`
+        : "";
+
+      const installButton = missing.length > 0 && !pythonBlocker
+        ? `<button class="btn btn-primary" type="button" style="width:100%; margin-top:14px" onclick='startInstall(${JSON.stringify(missing)})'>安裝缺少的套件：${escapeHtml(missing.join(", "))}</button>`
+        : "";
+
+      modalBody.innerHTML = `
+        <div class="summary-banner ${summaryClass}">${summaryText}</div>
+        ${blockerCard}
+        <table class="env-table">
+          <thead>
+            <tr>
+              <th></th>
+              <th>項目</th>
+              <th>說明</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+        ${installButton}
+      `;
+    }
+
+    async function openInstallHelper() {
+      openModal("安裝協助", `
+        <div class="status-card" style="min-height:220px">
+          <div class="spinner"></div>
+          <div class="status-title">正在整理安裝資訊</div>
+          <div class="status-text">先幫您確認目前哪些套件還沒安裝完成。</div>
+        </div>
+      `);
+
+      try {
+        const response = await fetch("/env-check");
+        const data = await response.json();
+        const missing = data.missing_pip || [];
+        const pythonBlocker = data.python_blocker || "";
+        const allInstalled = missing.length === 0 && !pythonBlocker;
+        const blockerCard = pythonBlocker
+          ? `<div class="device-card" style="margin-bottom:14px">
+              <strong>Python 版本提醒</strong>
+              <span>${escapeHtml(pythonBlocker)}</span>
+            </div>`
+          : "";
+        const installAction = missing.length > 0 && !pythonBlocker
+          ? `<button class="btn btn-primary" type="button" style="width:100%; margin-bottom:14px" onclick='startInstall(${JSON.stringify(missing)})'>開始安裝缺少套件</button>`
+          : "";
+
+        modalBody.innerHTML = `
+          <div class="summary-banner ${allInstalled ? "summary-ok" : "summary-warn"}">
+            ${allInstalled ? "目前需要的 pip 套件都已安裝。" : (pythonBlocker ? "請先調整 Python 版本，再安裝 Whisper / PyTorch。" : `目前缺少：${escapeHtml(missing.join(", "))}`)}
+          </div>
+          ${blockerCard}
+          <div class="device-card" style="margin-bottom:14px">
+            <strong>建議安裝項目</strong>
+            <span>一般情況至少需要 Flask 與 openai-whisper。macOS 會優先使用專案內的 .venv；Windows 上建議使用 Python 3.11 或 3.12。首次安裝時，PyTorch 可能會一起下載，容量約 2~3 GB。</span>
+          </div>
+          ${installAction}
+          <div class="device-card" style="margin-bottom:14px">
+            <strong>🍎 macOS 安裝說明</strong>
+            <span>
+              <b>1. 安裝 Homebrew</b>（如已安裝可跳過）<br>
+              打開「終端機」(Terminal)，貼上：<br>
+              <code style="display:block; background:#1a1c2e; color:#c8d6f0; padding:10px 12px; border-radius:10px; margin:8px 0; font-size:0.82rem; word-break:break-all;">/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"</code>
+              <b>2. 安裝 Python 3.12</b><br>
+              <code style="display:block; background:#1a1c2e; color:#c8d6f0; padding:10px 12px; border-radius:10px; margin:8px 0; font-size:0.82rem;">brew install python@3.12</code>
+              <b>3. 安裝 ffmpeg</b><br>
+              <code style="display:block; background:#1a1c2e; color:#c8d6f0; padding:10px 12px; border-radius:10px; margin:8px 0; font-size:0.82rem;">brew install ffmpeg</code>
+              <b>4. 啟動方式</b><br>
+              雙擊 <b>Whisper 字幕神器.app</b> 即可（首次會自動建立 .venv 並安裝 Python 套件）。<br>
+              或在終端機執行 <code>./start.command</code> 進行除錯。<br><br>
+              <b>⚠️ 首次啟動注意</b><br>
+              • 首次啟動會自動下載 PyTorch 與 Whisper 模型，需要穩定網路<br>
+              • Apple Silicon (M1/M2/M3/M4) 預設使用 CPU 較穩定<br>
+              • 若遇到「已損壞」提示，請在終端機執行：<br>
+              <code style="display:block; background:#1a1c2e; color:#c8d6f0; padding:10px 12px; border-radius:10px; margin:8px 0; font-size:0.82rem;">xattr -cr /路徑/Whisper\ 字幕神器.app</code>
+            </span>
+          </div>
+          <div class="device-card">
+            <strong>提醒</strong>
+            <span>安裝完成後，請重新執行 start.command（macOS）或 start.bat（Windows）。若 ffmpeg 尚未就緒，macOS 可用 Homebrew 安裝，Windows 可使用 CapCut 內建版本或手動安裝。</span>
+          </div>
+        `;
+      } catch (error) {
+        modalBody.innerHTML = `<div class="summary-banner summary-err">讀取安裝資訊失敗：${escapeHtml(error.message)}</div>`;
+      }
+    }
+
+    function startInstall(packages) {
+      modalTitle.textContent = "套件安裝中";
+      modalBody.innerHTML = `
+        <div class="summary-banner summary-warn">正在執行 pip install，首次安裝 Whisper 或 PyTorch 時會需要比較久。</div>
+        <div class="terminal" id="install-terminal"></div>
+      `;
+
+      const terminal = document.getElementById("install-terminal");
+      terminal.innerHTML = createTerminalLine(`# 安裝項目：${packages.join(", ")}`, "line-cmd");
+
+      fetch("/install", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ packages })
+      })
+        .then(response => response.json().then(data => ({ ok: response.ok, data })))
+        .then(({ ok, data }) => {
+          if (!ok || !data.install_id) {
+            throw new Error(data.error || "無法建立安裝工作。");
+          }
+
+          state.lastInstallId = data.install_id;
+          pollInstallStatus(data.install_id, terminal, "套件安裝完成，請重新啟動本工具。");
+        })
+        .catch(error => {
+          terminal.innerHTML += createTerminalLine(`安裝啟動失敗：${error.message}`, "line-err");
+        });
+    }
+
+    function startCudaInstall(indexUrl) {
+      modalTitle.textContent = "CUDA 版 PyTorch 安裝中";
+      modalBody.innerHTML = `
+        <div class="summary-banner summary-warn">正在安裝 CUDA 版 PyTorch，下載量可能達 2~3 GB，請稍候。</div>
+        <div class="terminal" id="install-terminal"></div>
+      `;
+
+      const terminal = document.getElementById("install-terminal");
+      terminal.innerHTML = createTerminalLine(`推薦索引：${indexUrl}`, "line-note");
+
+      fetch("/install-cuda-torch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ index_url: indexUrl })
+      })
+        .then(response => response.json().then(data => ({ ok: response.ok, data })))
+        .then(({ ok, data }) => {
+          if (!ok || !data.install_id) {
+            throw new Error(data.error || "無法建立 CUDA 安裝工作。");
+          }
+
+          state.lastInstallId = data.install_id;
+          pollInstallStatus(data.install_id, terminal, "CUDA 版 PyTorch 安裝完成，請重新啟動本工具。");
+        })
+        .catch(error => {
+          terminal.innerHTML += createTerminalLine(`安裝啟動失敗：${error.message}`, "line-err");
+        });
+    }
+
+    function pollInstallStatus(installId, terminal, successMessage) {
+      if (state.installPollTimer) {
+        clearInterval(state.installPollTimer);
+      }
+
+      let seen = 0;
+      state.installPollTimer = setInterval(() => {
+        fetch(`/install-status/${installId}`)
+          .then(response => response.json().then(data => ({ ok: response.ok, data })))
+          .then(({ ok, data }) => {
+            if (!ok) {
+              throw new Error(data.status || "無法取得安裝狀態。");
+            }
+
+            const lines = data.lines || [];
+            lines.slice(seen).forEach(line => {
+              let cls = "";
+              if (line.startsWith(">>>")) cls = "line-cmd";
+              else if (/success/i.test(line)) cls = "line-ok";
+              else if (/error|failed|traceback/i.test(line)) cls = "line-err";
+              else if (/安裝中|請耐心|下載|等待/.test(line)) cls = "line-note";
+              terminal.innerHTML += createTerminalLine(line, cls);
+            });
+            seen = lines.length;
+            terminal.scrollTop = terminal.scrollHeight;
+
+            if (data.status === "done") {
+              clearInterval(state.installPollTimer);
+              state.installPollTimer = null;
+              terminal.innerHTML += createTerminalLine(successMessage, "line-ok");
+            } else if (data.status === "error") {
+              clearInterval(state.installPollTimer);
+              state.installPollTimer = null;
+              terminal.innerHTML += createTerminalLine("安裝失敗，請查看上方訊息。", "line-err");
+            }
+          })
+          .catch(error => {
+            clearInterval(state.installPollTimer);
+            state.installPollTimer = null;
+            terminal.innerHTML += createTerminalLine(`輪詢安裝狀態失敗：${error.message}`, "line-err");
+          });
+      }, 1100);
+    }
+
+    function deviceDisplayName(device) {
+      if (device === "cuda") return "NVIDIA GPU (CUDA)";
+      if (device === "mps") return "Apple GPU (MPS)";
+      return "CPU";
+    }
+
+    async function openDevicePanel() {
+      openModal("裝置與 GPU 狀態", `
+        <div class="status-card" style="min-height:220px">
+          <div class="spinner"></div>
+          <div class="status-title">正在讀取裝置資訊</div>
+          <div class="status-text">幫您整理目前使用的是 CPU、NVIDIA CUDA 還是 Apple MPS。</div>
+        </div>
+      `);
+
+      try {
+        const [deviceRes, cudaRes] = await Promise.all([
+          fetch("/device-info").then(r => r.json()),
+          fetch("/cuda-diagnose").then(r => r.json())
+        ]);
+
+        const currentDevice = deviceDisplayName(deviceRes.device);
+        const platformName = cudaRes.platform || "Unknown";
+        const isMac = platformName === "macOS";
+        const modelLoaded = deviceRes.model_loaded ? "已載入" : "尚未載入";
+        const cudaAvailable = cudaRes.cuda_usable ? "可用" : (cudaRes.cuda_available ? "偵測到，但目前 PyTorch 不相容" : "不可用");
+        const mpsAvailable = cudaRes.mps_usable ? "可用（實驗）" : (cudaRes.mps_available ? "偵測到，但測試未通過" : "不可用");
+        const gpuName = deviceRes.gpu_name || cudaRes.gpu_name || "未偵測到";
+        const torchVersion = cudaRes.torch_version || "未安裝";
+        const torchCuda = cudaRes.torch_cuda || "未安裝";
+        const cudaCapability = cudaRes.cuda_capability_label || "未知";
+        const cudaIssue = cudaRes.cuda_issue || "";
+        const mpsIssue = cudaRes.mps_issue || "";
+        const pythonVersion = cudaRes.python_version || "未知";
+        const cudaInstallBlocker = cudaRes.cuda_install_blocker || "";
+        const recommendedIndex = cudaRes.recommended_index || "";
+        const cudaInstallButton = isMac
+          ? ""
+          : cudaInstallBlocker
+            ? `<button class="btn btn-primary" type="button" disabled>安裝 CUDA 版 PyTorch</button>`
+            : `<button class="btn btn-primary" type="button" onclick='startCudaInstall(${JSON.stringify(recommendedIndex)})'>安裝 CUDA 版 PyTorch</button>`;
+        const noticeText = isMac
+          ? (mpsIssue || "macOS 不需要安裝 CUDA。Whisper 在 Apple MPS 上可能遇到 PyTorch operator 不支援，預設使用 CPU 較穩定；若手動切到 MPS 失敗，系統會自動退回 CPU 重試。")
+          : (cudaInstallBlocker || cudaIssue);
+        const noticeClass = isMac && !mpsIssue ? "summary-warn" : "summary-err";
+        const deviceIsAccelerated = deviceRes.device === "cuda" || deviceRes.device === "mps";
+        const gpuButtons = [
+          cudaRes.cuda_usable ? `<button class="btn btn-primary" type="button" onclick="switchDevice('cuda')">切換到 NVIDIA GPU</button>` : "",
+          cudaRes.mps_usable ? `<button class="btn btn-soft" type="button" onclick="switchDevice('mps')">切換到 Apple GPU（實驗）</button>` : "",
+          `<button class="btn btn-soft" type="button" onclick="switchDevice('cpu')">切換到 CPU</button>`
+        ].filter(Boolean).join("");
+        const cudaInstallNotice = noticeText
+          ? `<div class="summary-banner ${noticeClass}">${escapeHtml(noticeText)}</div>`
+          : "";
+        const recommendedCard = recommendedIndex
+          ? `<div class="device-card">
+              <strong>建議安裝索引</strong>
+              <span>${escapeHtml(recommendedIndex)}</span>
+            </div>`
+          : "";
+
+        modalBody.innerHTML = `
+          <div class="summary-banner ${deviceIsAccelerated ? "summary-ok" : "summary-warn"}">
+            目前運算裝置：${escapeHtml(currentDevice)}，模型狀態：${escapeHtml(modelLoaded)}。
+          </div>
+          ${cudaInstallNotice}
+
+          <div class="device-grid">
+            <div class="device-card">
+              <strong>目前裝置</strong>
+              <span>${escapeHtml(currentDevice)}</span>
+            </div>
+            <div class="device-card">
+              <strong>CUDA 狀態</strong>
+              <span>${escapeHtml(cudaAvailable)}</span>
+            </div>
+            <div class="device-card">
+              <strong>Apple MPS 狀態</strong>
+              <span>${escapeHtml(mpsAvailable)}</span>
+            </div>
+            <div class="device-card">
+              <strong>GPU 名稱</strong>
+              <span>${escapeHtml(gpuName)}</span>
+            </div>
+            <div class="device-card">
+              <strong>PyTorch 版本</strong>
+              <span>${escapeHtml(torchVersion)}</span>
+            </div>
+            <div class="device-card">
+              <strong>PyTorch CUDA</strong>
+              <span>${escapeHtml(torchCuda)}</span>
+            </div>
+            <div class="device-card">
+              <strong>顯卡架構</strong>
+              <span>${escapeHtml(cudaCapability)}</span>
+            </div>
+            <div class="device-card">
+              <strong>Python 版本</strong>
+              <span>${escapeHtml(pythonVersion)}</span>
+            </div>
+            ${recommendedCard}
+          </div>
+
+          <div class="btn-row" style="margin-bottom:14px">
+            ${gpuButtons}
+          </div>
+
+          <div class="btn-row" style="margin-bottom:14px">
+            <button class="btn btn-soft" type="button" onclick="unloadModel()">卸載模型</button>
+            ${cudaInstallButton}
+          </div>
+
+          <div class="device-card">
+            <strong>進一步資訊</strong>
+            <span>平台：${escapeHtml(platformName)}<br>nvcc：${escapeHtml(cudaRes.nvcc_version || "未偵測到")}<br>nvidia-smi：${escapeHtml(cudaRes.nvidia_smi || "未偵測到")}</span>
+          </div>
+        `;
+      } catch (error) {
+        modalBody.innerHTML = `<div class="summary-banner summary-err">讀取裝置資訊失敗：${escapeHtml(error.message)}</div>`;
+      }
+    }
+
+    async function switchDevice(target) {
+      try {
+        const response = await fetch("/set-device", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ device: target })
+        });
+        const data = await response.json();
+        if (!response.ok || data.error) {
+          throw new Error(data.error || `HTTP ${response.status}`);
+        }
+        await openDevicePanel();
+      } catch (error) {
+        alert(`切換裝置失敗：${error.message}`);
+      }
+    }
+
+    async function unloadModel() {
+      try {
+        const response = await fetch("/unload-model", { method: "POST" });
+        const data = await response.json();
+        if (!response.ok || data.error) {
+          throw new Error(data.error || `HTTP ${response.status}`);
+        }
+        await openDevicePanel();
+        alert(data.msg || "模型已卸載。");
+      } catch (error) {
+        alert(`卸載模型失敗：${error.message}`);
+      }
+    }
+
+    dropZone.addEventListener("click", () => {
+      fileInput.value = "";
+      fileInput.click();
+    });
+    dropZone.addEventListener("keydown", event => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      fileInput.value = "";
+      fileInput.click();
+    });
+    fileInput.addEventListener("change", event => {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      setFile(file);
+      startUpload(file);
+    });
+
+    ["dragenter", "dragover"].forEach(eventName => {
+      dropZone.addEventListener(eventName, event => {
+        event.preventDefault();
+        dropZone.classList.add("drag-over");
+      });
+    });
+
+    ["dragleave", "drop"].forEach(eventName => {
+      dropZone.addEventListener(eventName, event => {
+        event.preventDefault();
+        dropZone.classList.remove("drag-over");
+      });
+    });
+
+    dropZone.addEventListener("drop", event => {
+      const file = event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0];
+      if (!file) return;
+      setFile(file);
+      startUpload(file);
+    });
+
+    document.querySelectorAll(".seg-btn").forEach(button => {
+      button.addEventListener("click", () => setSegMode(button.dataset.mode));
+    });
+
+    document.getElementById("download-btn").addEventListener("click", () => {
+      if (!state.currentJobId) return;
+      window.location.href = `/download/${state.currentJobId}`;
+    });
+
+    document.getElementById("reset-btn").addEventListener("click", resetAll);
+    document.getElementById("retry-btn").addEventListener("click", () => {
+      if (state.file) {
+        startUpload(state.file);
+      } else {
+        resetAll();
+      }
+    });
+
+    document.getElementById("cancel-btn").addEventListener("click", async () => {
+      if (state.currentJobId) {
+        try {
+          await fetch(`/cancel/${state.currentJobId}`, { method: "POST" });
+        } catch (_) {
+          // 中文註解：取消失敗時不用阻止前端重設，直接清掉畫面即可。
+        }
+      }
+      resetAll();
+    });
+
+    document.getElementById("env-check-btn").addEventListener("click", runEnvCheck);
+    document.getElementById("install-helper-btn").addEventListener("click", openInstallHelper);
+    document.getElementById("device-panel-btn").addEventListener("click", openDevicePanel);
+
+    modalClose.addEventListener("click", closeModal);
+    modalOverlay.addEventListener("click", event => {
+      if (event.target === modalOverlay) closeModal();
+    });
+    document.addEventListener("keydown", event => {
+      if (event.key === "Escape" && !modalOverlay.classList.contains("hidden")) {
+        closeModal();
+      }
+    });
+
+    // 中文註解：字典功能 — 存檔到瀏覽器 localStorage、載入、匯出 .txt、匯入 .txt、清空。
+    const DICT_STORAGE_KEY = "whisper_dict_content";
+    const dictInput = document.getElementById("dict-input");
+
+    function dictSave() {
+      const text = (dictInput.value || "").trim();
+      if (!text) {
+        alert("字典內容是空的，沒有東西可以存檔。");
+        return;
+      }
+      try {
+        localStorage.setItem(DICT_STORAGE_KEY, text);
+        alert("✅ 字典已存檔到瀏覽器！下次開啟頁面會自動載入。");
+      } catch (e) {
+        alert("存檔失敗：" + e.message);
+      }
+    }
+
+    function dictLoad() {
+      try {
+        const saved = localStorage.getItem(DICT_STORAGE_KEY);
+        if (saved) {
+          dictInput.value = saved;
+          alert("✅ 已從瀏覽器載入字典。");
+        } else {
+          alert("瀏覽器中沒有找到之前存過的字典。");
+        }
+      } catch (e) {
+        alert("載入失敗：" + e.message);
+      }
+    }
+
+    function dictExport() {
+      const text = (dictInput.value || "").trim();
+      if (!text) {
+        alert("字典內容是空的，沒有東西可以匯出。");
+        return;
+      }
+      const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "whisper-dict.txt";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function dictImportClick() {
+      document.getElementById("dict-file-input").value = "";
+      document.getElementById("dict-file-input").click();
+    }
+
+    function dictImportFile(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        const content = (e.target.result || "").trim();
+        if (!content) {
+          alert("檔案內容是空的。");
+          return;
+        }
+        if (dictInput.value.trim()) {
+          const existing = dictInput.value.trim();
+          dictInput.value = existing + ", " + content;
+          alert(`✅ 已將「${file.name}」的內容合併到現有字典。`);
+        } else {
+          dictInput.value = content;
+          alert(`✅ 已載入「${file.name}」的內容。`);
+        }
+      };
+      reader.onerror = function () {
+        alert("讀取檔案失敗，請確認檔案格式。");
+      };
+      reader.readAsText(file, "UTF-8");
+    }
+
+    function dictClear() {
+      if (!dictInput.value.trim()) return;
+      if (confirm("確定要清空字典內容嗎？")) {
+        dictInput.value = "";
+      }
+    }
+
+    // 中文註解：頁面載入時自動讀取上次存檔的字典內容。
+    function dictAutoLoad() {
+      try {
+        const saved = localStorage.getItem(DICT_STORAGE_KEY);
+        if (saved) {
+          dictInput.value = saved;
+        }
+      } catch (_) { }
+    }
+
+    setIdleStatus();
+    dictAutoLoad();
+  </script>
+</body>
+
+</html>

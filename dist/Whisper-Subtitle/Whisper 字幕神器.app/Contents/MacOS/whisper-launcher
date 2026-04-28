@@ -4,24 +4,9 @@ set -u
 APP_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 cd "$APP_ROOT"
 
-# 檢查是否遭到 macOS App Translocation (隔離機制) 導致找不到 app.py
-if [ ! -f "$APP_ROOT/app.py" ]; then
-  /usr/bin/osascript -e 'display dialog "找不到 app.py！\n\n這通常是因為 macOS 的安全機制（App Translocation）將啟動程式隔離了。請開啟「終端機」，輸入以下指令解除隔離：\n\nxattr -cr \"'"$APP_ROOT"'\"" buttons {"了解"} default button "了解" with title "啟動失敗" with icon stop' >/dev/null 2>&1
-  exit 1
-fi
-
-# 檢查目錄是否有寫入權限 (建立 log 與 venv 需要)
-if [ ! -w "$APP_ROOT" ]; then
-  /usr/bin/osascript -e 'display dialog "目前資料夾沒有寫入權限！\n\n請將整個 Whisper 字幕神器資料夾移動到「應用程式」或「桌面」再試一次；或是使用 xattr -cr 解除隔離。" buttons {"了解"} default button "了解" with title "權限錯誤" with icon stop' >/dev/null 2>&1
-  exit 1
-fi
-
 LOG_DIR="$APP_ROOT/logs"
 LOG_FILE="$LOG_DIR/macos-app.log"
-mkdir -p "$LOG_DIR" || {
-  /usr/bin/osascript -e 'display dialog "無法建立 logs 資料夾，請檢查權限。" buttons {"OK"} default button "OK" with title "錯誤" with icon stop' >/dev/null 2>&1
-  exit 1
-}
+mkdir -p "$LOG_DIR"
 exec >> "$LOG_FILE" 2>&1
 
 echo "================================"
@@ -32,11 +17,9 @@ echo "================================"
 export PATH="/opt/homebrew/bin:/usr/local/bin:/opt/local/bin:${PATH}"
 export PYTORCH_ENABLE_MPS_FALLBACK="${PYTORCH_ENABLE_MPS_FALLBACK:-1}"
 
-# 修正 Homebrew Python 3.12 的 pyexpat / libexpat 相容性問題 (Apple Silicon 與 Intel)
+# 修正 Homebrew Python 3.12 的 pyexpat / libexpat 相容性問題
 if [ -d "/opt/homebrew/opt/expat/lib" ]; then
   export DYLD_LIBRARY_PATH="/opt/homebrew/opt/expat/lib:${DYLD_LIBRARY_PATH:-}"
-elif [ -d "/usr/local/opt/expat/lib" ]; then
-  export DYLD_LIBRARY_PATH="/usr/local/opt/expat/lib:${DYLD_LIBRARY_PATH:-}"
 fi
 
 notify_error() {
@@ -121,9 +104,9 @@ else
   fi
 
   echo "[SETUP] Creating .venv with ${BASE_PYTHON}..."
-  "$BASE_PYTHON" -m venv .venv 2>/dev/null || "$BASE_PYTHON" -m venv --copies .venv 2>/dev/null || "$BASE_PYTHON" -m venv --without-pip .venv || {
+  "$BASE_PYTHON" -m venv .venv 2>/dev/null || "$BASE_PYTHON" -m venv --without-pip .venv || {
     echo "[ERROR] Failed to create .venv."
-    /usr/bin/osascript -e 'display dialog "無法建立 Python 虛擬環境！\n\n這通常是因為權限問題（例如放在 iCloud 同步的桌面/文件，或是外接硬碟）。\n\n請嘗試將整個「Whisper-Subtitle」資料夾移動到「使用者家目錄」或是「應用程式」內，再重新啟動。" buttons {"了解"} default button "了解" with title "建立環境失敗" with icon stop' >/dev/null 2>&1
+    notify_error
     exit 1
   }
   PYTHON="$PWD/.venv/bin/python"

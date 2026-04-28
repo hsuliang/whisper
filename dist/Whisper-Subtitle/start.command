@@ -14,11 +14,9 @@ echo
 
 export PATH="/opt/homebrew/bin:/usr/local/bin:/opt/local/bin:${PATH}"
 
-# 修正 Homebrew Python 3.12 的 pyexpat / libexpat 相容性問題 (Apple Silicon 與 Intel)
+# 修正 Homebrew Python 3.12 的 pyexpat / libexpat 相容性問題
 if [ -d "/opt/homebrew/opt/expat/lib" ]; then
   export DYLD_LIBRARY_PATH="/opt/homebrew/opt/expat/lib:${DYLD_LIBRARY_PATH:-}"
-elif [ -d "/usr/local/opt/expat/lib" ]; then
-  export DYLD_LIBRARY_PATH="/usr/local/opt/expat/lib:${DYLD_LIBRARY_PATH:-}"
 fi
 
 echo "[CHECK] Checking localhost:${PORT}..."
