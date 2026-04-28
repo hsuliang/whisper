@@ -901,7 +901,8 @@
       <section class="card">
         <div class="card-body">
           <div class="tabs" style="display:flex; gap:10px; margin-bottom: 20px;">
-            <button class="tab-btn active" id="tab-upload" type="button" onclick="switchTab('upload')">📁 本機影音上傳</button>
+            <button class="tab-btn active" id="tab-upload" type="button" onclick="switchTab('upload')">📁
+              本機影音上傳</button>
             <button class="tab-btn" id="tab-youtube" type="button" onclick="switchTab('youtube')">🔗 YouTube 網址</button>
           </div>
 
@@ -916,7 +917,7 @@
               <div class="drop-inner">
                 <div class="drop-icon">🎧</div>
                 <div class="drop-title">把音訊或影片拖進來或點一下加入檔案</div>
-                <div class="drop-hint">(檔案大小限制 500MB)</div>
+                <div class="drop-hint">(檔案大小限制 4GB)</div>
                 <div class="chip-row">
                   <span class="chip">mp3</span>
                   <span class="chip">mp4</span>
@@ -936,13 +937,17 @@
               <h2>下載 YouTube 影片音訊</h2>
               <span>貼上網址即可自動下載並轉錄</span>
             </div>
-            <div style="padding: 22px; border-radius: 24px; border: 2px dashed rgba(255, 116, 152, 0.45); background: linear-gradient(180deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.42)), linear-gradient(135deg, rgba(255, 107, 165, 0.1), rgba(111, 115, 255, 0.08));">
+            <div
+              style="padding: 22px; border-radius: 24px; border: 2px dashed rgba(255, 116, 152, 0.45); background: linear-gradient(180deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.42)), linear-gradient(135deg, rgba(255, 107, 165, 0.1), rgba(111, 115, 255, 0.08));">
               <div style="display:flex; gap:10px;">
-                <input type="text" id="youtube-url" placeholder="請貼上 YouTube 影片網址 (https://www.youtube.com/watch?v=...)" style="flex:1; padding: 14px 16px; border-radius: 18px; border: 2px solid rgba(194, 170, 229, 0.4); background: rgba(255,255,255,0.78); font: inherit; font-size: 0.95rem; outline: none;">
-                <button class="btn btn-primary" id="youtube-btn" type="button" onclick="startYoutubeDownload()" style="flex:0; min-width:120px; white-space:nowrap;">下載並轉錄</button>
+                <input type="text" id="youtube-url" placeholder="請貼上 YouTube 影片網址 (https://www.youtube.com/watch?v=...)"
+                  style="flex:1; padding: 14px 16px; border-radius: 18px; border: 2px solid rgba(194, 170, 229, 0.4); background: rgba(255,255,255,0.78); font: inherit; font-size: 0.95rem; outline: none;">
+                <button class="btn btn-primary" id="youtube-btn" type="button" onclick="startYoutubeDownload()"
+                  style="flex:0; min-width:120px; white-space:nowrap;">下載並轉錄</button>
               </div>
-              <div class="drop-hint" style="margin-top: 15px; text-align: left; color: var(--muted); font-size: 0.85rem;">
-                ⚠️ 為了避免下載時間過長，系統會自動切換為只下載<b>最高音質的音訊檔</b>，並且若貼上清單網址，只會下載清單中的<b>第一部影片</b>。
+              <div class="drop-hint"
+                style="margin-top: 15px; text-align: left; color: var(--muted); font-size: 0.85rem;">
+                ⚠️ 為了縮短流程，系統會最高音質的音訊檔，不支援清單網址批次下載。
               </div>
             </div>
             <div class="filename hidden" id="youtube-filename-badge" style="margin-top: 15px;"></div>
@@ -956,15 +961,15 @@
           <div class="mode-grid">
             <button class="seg-btn" data-mode="fine" type="button">
               <strong>細緻</strong>
-              <small>保留較多原始切段，適合後製微調。</small>
+              <small>適合後製微調</small>
             </button>
             <button class="seg-btn seg-active" data-mode="standard" type="button">
               <strong>標準</strong>
-              <small>兼顧閱讀與時間軸，推薦一般使用。</small>
+              <small>適合一般使用</small>
             </button>
             <button class="seg-btn" data-mode="coarse" type="button">
               <strong>寬鬆</strong>
-              <small>盡量合併片段，適合快速閱讀整段內容。</small>
+              <small>適合快速閱讀整段內容</small>
             </button>
           </div>
 
@@ -996,8 +1001,7 @@
               onchange="dictImportFile(event)">
           </div>
           <div style="margin-top:8px; color:var(--muted); font-size:0.8rem; line-height:1.6;">
-            轉錄時會將這些詞彙作為提示傳給 Whisper，有助於正確辨識專業術語、人名與公司名稱。<br>
-            可隨時存檔到瀏覽器，或匯出/匯入 .txt 文字檔分享使用。
+            轉錄時有助於正確辨識專業術語、人名與公司名稱。
           </div>
         </div>
       </section>
@@ -1954,7 +1958,7 @@
           body: formData
         });
         let result = await res.json();
-        
+
         if (res.ok) {
           state.currentJobId = result.job_id;
           setProcessingStatus("YouTube: " + url);

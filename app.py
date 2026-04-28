@@ -26,7 +26,7 @@ INDEX_FILE = BASE_DIR / "index.html"
 UPLOAD_DIR.mkdir(exist_ok=True)
 
 ALLOWED_EXTENSIONS = {"mp3", "mp4", "wav", "m4a", "ogg", "webm"}
-MAX_CONTENT_LENGTH = 500 * 1024 * 1024
+MAX_CONTENT_LENGTH = 4000 * 1024 * 1024
 PYTORCH_WINDOWS_PYTHON_MIN = (3, 9)
 PYTORCH_WINDOWS_PYTHON_MAX = (3, 12)
 PYTORCH_PIP_PACKAGES = {"openai-whisper", "whisper", "torch", "torchvision", "torchaudio"}
