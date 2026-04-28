@@ -34,14 +34,14 @@ export PYTORCH_ENABLE_MPS_FALLBACK="${PYTORCH_ENABLE_MPS_FALLBACK:-1}"
 
 # 修正 Homebrew Python 3.12 的 pyexpat / libexpat 相容性問題 (Apple Silicon 與 Intel)
 if command -v brew >/dev/null 2>&1; then
-  EXPAT_LIB="$(brew --prefix expat 2>/dev/null)/lib"
-  if [ ! -d "$EXPAT_LIB" ]; then
+  EXPAT_PREFIX="$(brew --prefix expat 2>/dev/null)"
+  if [ -z "$EXPAT_PREFIX" ] || [ ! -d "$EXPAT_PREFIX/lib" ]; then
     echo "[SETUP] Missing expat for Python. Installing via Homebrew..."
     brew install expat >/dev/null 2>&1 || true
-    EXPAT_LIB="$(brew --prefix expat 2>/dev/null)/lib"
+    EXPAT_PREFIX="$(brew --prefix expat 2>/dev/null)"
   fi
-  if [ -d "$EXPAT_LIB" ]; then
-    export DYLD_LIBRARY_PATH="$EXPAT_LIB:${DYLD_LIBRARY_PATH:-}"
+  if [ -n "$EXPAT_PREFIX" ] && [ -d "$EXPAT_PREFIX/lib" ]; then
+    export DYLD_LIBRARY_PATH="$EXPAT_PREFIX/lib:${DYLD_LIBRARY_PATH:-}"
   fi
 fi
 
