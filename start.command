@@ -15,10 +15,16 @@ echo
 export PATH="/opt/homebrew/bin:/usr/local/bin:/opt/local/bin:${PATH}"
 
 # 修正 Homebrew Python 3.12 的 pyexpat / libexpat 相容性問題 (Apple Silicon 與 Intel)
-if [ -d "/opt/homebrew/opt/expat/lib" ]; then
-  export DYLD_LIBRARY_PATH="/opt/homebrew/opt/expat/lib:${DYLD_LIBRARY_PATH:-}"
-elif [ -d "/usr/local/opt/expat/lib" ]; then
-  export DYLD_LIBRARY_PATH="/usr/local/opt/expat/lib:${DYLD_LIBRARY_PATH:-}"
+if command -v brew >/dev/null 2>&1; then
+  EXPAT_LIB="$(brew --prefix expat 2>/dev/null)/lib"
+  if [ ! -d "$EXPAT_LIB" ]; then
+    echo "[SETUP] Missing expat for Python. Installing via Homebrew..."
+    brew install expat >/dev/null 2>&1 || true
+    EXPAT_LIB="$(brew --prefix expat 2>/dev/null)/lib"
+  fi
+  if [ -d "$EXPAT_LIB" ]; then
+    export DYLD_LIBRARY_PATH="$EXPAT_LIB:${DYLD_LIBRARY_PATH:-}"
+  fi
 fi
 
 echo "[CHECK] Checking localhost:${PORT}..."
