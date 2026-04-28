@@ -121,7 +121,7 @@ else
   fi
 
   echo "[SETUP] Creating .venv with ${BASE_PYTHON}..."
-  "$BASE_PYTHON" -m venv .venv 2>/dev/null || "$BASE_PYTHON" -m venv --copies .venv 2>/dev/null || "$BASE_PYTHON" -m venv --without-pip .venv || {
+  "$BASE_PYTHON" -m venv --clear .venv 2>/dev/null || "$BASE_PYTHON" -m venv --without-pip --clear .venv || {
     echo "[ERROR] Failed to create .venv."
     /usr/bin/osascript -e 'display dialog "無法建立 Python 虛擬環境！\n\n這通常是因為權限問題（例如放在 iCloud 同步的桌面/文件，或是外接硬碟）。\n\n請嘗試將整個「Whisper-Subtitle」資料夾移動到「使用者家目錄」或是「應用程式」內，再重新啟動。" buttons {"了解"} default button "了解" with title "建立環境失敗" with icon stop' >/dev/null 2>&1
     exit 1
