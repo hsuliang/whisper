@@ -1076,7 +1076,9 @@
       <button class="tool-btn tool-env" type="button" id="env-check-btn">檢查環境</button>
       <button class="tool-btn tool-install" type="button" id="install-helper-btn">安裝協助</button>
       <button class="tool-btn tool-device" type="button" id="device-panel-btn">裝置 / GPU</button>
-      <button class="tool-btn" type="button" id="shutdown-btn" style="background: rgba(255, 107, 165, 0.1); color: var(--brand-1); border: 1px solid rgba(255, 107, 165, 0.3);">🛑 關閉伺服器</button>
+      <button class="tool-btn" type="button" id="shutdown-btn"
+        style="background: rgba(255, 107, 165, 0.1); color: var(--brand-1); border: 1px solid rgba(255, 107, 165, 0.3);">🛑
+        關閉伺服器</button>
     </section>
   </div>
 
@@ -1988,19 +1990,18 @@
       if (!confirm("確定要完全關閉背景伺服器嗎？\n關閉後若要再次使用，請重新啟動「Whisper 字幕神器.app」。")) return;
       try {
         await fetch("/shutdown", { method: "POST" });
-      } catch (err) {}
-      
+      } catch (err) { }
+
       document.body.innerHTML = `
         <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; font-family:sans-serif; text-align:center;">
           <h1 style="color:#ff6ba5; margin-bottom:10px;">伺服器已成功關閉 👋</h1>
           <p style="color:#666; font-size:1.1rem; max-width:400px; line-height:1.6;">
-            背景系統已完全停止運作，不再佔用您的電腦資源。<br><br>
-            這頁分頁即將自動關閉。<br>
-            （如果瀏覽器沒有自動關閉分頁，請您手動關閉即可！）
+            背景系統已停止運作，不再佔用您的電腦資源。<br><br>
+            請關閉此分頁。<br>
           </p>
         </div>
       `;
-      
+
       setTimeout(() => {
         window.close();
       }, 1500);
