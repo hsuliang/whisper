@@ -25,6 +25,59 @@ export PYTORCH_ENABLE_MPS_FALLBACK="${PYTORCH_ENABLE_MPS_FALLBACK:-1}"
 export APP_ROOT_PATH="$APP_ROOT"
 export APP_DATA_DIR="$DATA_DIR"
 
+# --- 0. Check App Location ---
+BUNDLE_DIR="$(cd "$APP_ROOT/../.." && pwd)"
+if [[ "$BUNDLE_DIR" != "/Applications"* ]] && [[ "$BUNDLE_DIR" != "$HOME/Applications"* ]]; then
+  MOVE_PROMPT=$(/usr/bin/osascript -e '
+    set dialogText to "為了獲得最佳效能與穩定性，強烈建議將「Whisper 字幕神器」移動到「應用程式」資料夾中執行。\n\n是否讓程式現在自動幫您移動？"
+    try
+      set response to display dialog dialogText buttons {"稍後再說", "自動移動並重啟"} default button "自動移動並重啟" with title "Whisper 字幕神器" with icon note
+      return button returned of response
+    on error
+      return "cancel"
+    end try
+  ')
+  
+  if [ "$MOVE_PROMPT" = "自動移動並重啟" ]; then
+    echo "[SETUP] User chose to move app to /Applications"
+    MOVE_RESULT=$(/usr/bin/osascript -e "
+      try
+        tell application \"Finder\"
+          set appAlias to POSIX file \"$BUNDLE_DIR\" as alias
+          set destFolder to POSIX file \"/Applications\" as alias
+          move appAlias to destFolder with replacing
+        end tell
+        return \"success\"
+      on error errMsg
+        return \"error: \" & errMsg
+      end try
+    ")
+    
+    if [[ "$MOVE_RESULT" == *"success"* ]]; then
+      APP_NAME=$(basename "$BUNDLE_DIR")
+      DEST_APP="/Applications/$APP_NAME"
+      echo "[SETUP] Moved successfully, waiting for completion..."
+      
+      # Wait up to 10 seconds for the copy to finish to avoid race conditions
+      for i in {1..20}; do
+        if [ -f "$DEST_APP/Contents/Resources/index.html" ] && [ -f "$DEST_APP/Contents/Resources/app.py" ]; then
+          sleep 0.5 # Give it a tiny bit more time to finish writing other files
+          break
+        fi
+        sleep 0.5
+      done
+      
+      echo "[SETUP] Relaunching $DEST_APP"
+      open "$DEST_APP"
+      exit 0
+    else
+      echo "[ERROR] Move failed: $MOVE_RESULT"
+      /usr/bin/osascript -e 'display dialog "自動移動失敗，請您手動將程式拖曳至「應用程式」資料夾中。" buttons {"確定"} default button "確定" with title "移動失敗" with icon caution' >/dev/null 2>&1
+    fi
+  fi
+fi
+
+
 # --- 1. Python Pre-flight Check ---
 BASE_PYTHON=""
 for CANDIDATE in python3.12 python3.11 python3.10 python3.9 python3; do

@@ -56,7 +56,18 @@ if [[ "$BUNDLE_DIR" != "/Applications"* ]] && [[ "$BUNDLE_DIR" != "$HOME/Applica
     if [[ "$MOVE_RESULT" == *"success"* ]]; then
       APP_NAME=$(basename "$BUNDLE_DIR")
       DEST_APP="/Applications/$APP_NAME"
-      echo "[SETUP] Moved successfully, relaunching $DEST_APP"
+      echo "[SETUP] Moved successfully, waiting for completion..."
+      
+      # Wait up to 10 seconds for the copy to finish to avoid race conditions
+      for i in {1..20}; do
+        if [ -f "$DEST_APP/Contents/Resources/index.html" ] && [ -f "$DEST_APP/Contents/Resources/app.py" ]; then
+          sleep 0.5 # Give it a tiny bit more time to finish writing other files
+          break
+        fi
+        sleep 0.5
+      done
+      
+      echo "[SETUP] Relaunching $DEST_APP"
       open "$DEST_APP"
       exit 0
     else
