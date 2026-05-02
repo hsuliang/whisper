@@ -67,6 +67,9 @@ if [[ "$BUNDLE_DIR" != "/Applications"* ]] && [[ "$BUNDLE_DIR" != "$HOME/Applica
         sleep 0.5
       done
       
+      # Clear quarantine attribute so macOS doesn't translocate the app again on next launch
+      xattr -dr com.apple.quarantine "$DEST_APP" >/dev/null 2>&1
+      
       echo "[SETUP] Relaunching $DEST_APP"
       open "$DEST_APP"
       exit 0
